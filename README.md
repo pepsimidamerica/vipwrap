@@ -6,7 +6,7 @@ At the moment, the package is mainly just a wrapper around FTP and SFTP librarie
 
 As is, the point of the package is largely just defining how to upload a file to VIP in one place so it doesn't need to be rewritten every time a repo involving VIP is created and can instead just be imported. Could also be made more generic and just used for any project involving FTP/SFTP. But I'm following general principle used with other similiar projects (grafap, nacwrap, clope), where the repo contains whatever all is needed to interact with that particular software.
 
-TODO: Perhaps make more abstract. Handle order or sales file creation in here and just pass the data in as dataframe or list of dictionaries or something similar.
+TODO: Perhaps make more abstract. Handle order or sales file creation in here and just pass the data in as dataframe or list of dictionaries or something similar. Or rather, just support both. Direct file interface as well as more generic handling or sale info or order creation. No reason not to have noth capabilities.
 
 ## Installation
 
@@ -18,7 +18,7 @@ Currently consists of one function.
 
 ### Send File to VIP
 
-Takes standard parameters expected of uploading a file to a remote location via FTP or SFTP.
+Takes standard parameters expected of uploading an existing local file to a remote location via FTP or SFTP.
 
 | parameter | type | description |
 | - | - | - |
