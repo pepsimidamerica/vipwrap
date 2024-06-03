@@ -9,6 +9,8 @@ from typing import IO, Literal
 
 import paramiko
 
+import models
+
 
 def send_file_to_vip(
     ftp_method: Literal["sftp", "ftp"],

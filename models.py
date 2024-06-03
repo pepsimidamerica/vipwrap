@@ -3,6 +3,7 @@ models represents all data models used in VIP imports. Used to validate order
 and invoice/sales history data before creating file to be uploaded to their GDI system.
 """
 
+import re
 from typing import Required
 
 import pandas
@@ -22,6 +23,8 @@ Could alternatively make a check only for each unique data type rather than one
 for every individual field, but this way is more explicit and easier to change
 if there's an update to the required format and one field needs to be changed.
 """
+arstatus_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["1", "3"])]
+artype_check = pandera.Check.str_length(1, 1)
 codedate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
 company_check = pandera.Check.str_length(1, 5)
 deliverydate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
@@ -36,12 +39,20 @@ discountamount_check = [
 discountcode_check = pandera.Check.str_length(1, 10)
 discountgroup_check = pandera.Check.str_length(1, 10)
 discountlevel_check = pandera.Check.str_length(1, 1)
-driver_check = pandera.Check.str_length(5, 5)
+driver_check = pandera.Check.str_length(1, 5)
+flpgroup_check = pandera.Check.str_length(1, 5)
+helper_check = pandera.Check.str_length(1, 5)
 ignoredeliverycharge_check = [
     pandera.Check.str_length(1, 1),
     pandera.Check.isin(["Y", "N"]),
 ]
 invoicecomments_check = pandera.Check.str_length(1, 560)
+invoicedate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
+invoicenumber_check = [
+    pandera.Check.str_length(1, 15),
+    pandera.Check.str_matches(r"^\d+$"),
+]
+invoicetype_check = pandera.Check.str_length(1, 1)
 linenumber_check = [pandera.Check.str_length(3, 3), pandera.Check.str_matches(r"^\d+$")]
 loadnumber_check = pandera.Check.str_length(8, 8)
 orderaction_check = [
@@ -68,13 +79,17 @@ postoffamount_check = [
     pandera.Check.in_range(0, 9999999.99),
     pandera.Check.str_matches(r"^\d{1,7}(\.\d{1,2})?$"),
 ]
+pricegroup_check = pandera.Check.str_length(1, 5)
 productcode_check = pandera.Check.str_length(6, 6)
 reasoncode_check = pandera.Check.str_length(2, 2)
 retailerid_check = pandera.Check.str_length(5, 5)
 salesrep_check = pandera.Check.str_length(1, 5)
 specialprice_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["0", "1"])]
+subpricegroup_check = pandera.Check.str_length(1, 5)
+trucktype_check = pandera.Check.str_length(1, 1)
 unitofmeasure_check = [pandera.Check.str_length(2, 2), pandera.Check.isin(["CW", "CB"])]
 voidflag_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["Y", "N"])]
+voidreason_check = pandera.Check.str_length(1, 2)
 warehouse_check = pandera.Check.str_length(1, 5)
 
 
@@ -162,32 +177,38 @@ class InvoiceModel(pandera.DataFrameModel):
     Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
     """
 
-    retailerid: Series[pandera.String] = pandera.Field(checks=retailerid_check)
-    # invoicenumber # required
-    # invoicedate # required
-    # arstatus
-    # ordertype
-    # loadnumber
-    # driver
-    # helper1
-    # helper2
-    # helper3
-    # helper4
-    # helper5
-    # company
+    retailerid: Series[pandera.String] = pandera.Field(
+        checks=retailerid_check, required=True
+    )
+    invoicenumber: Series[pandera.String] = pandera.Field(
+        checks=invoicenumber_check, required=True
+    )
+    invoicedate: Series[pandera.Int] = pandera.Field(
+        checks=invoicedate_check, required=True
+    )
+    arstatus: Series[pandera.String] = pandera.Field(checks=arstatus_check)
+    ordertype: Series[pandera.String] = pandera.Field(checks=ordertype_check)
+    loadnumber: Series[pandera.String] = pandera.Field(checks=loadnumber_check)
+    driver: Series[pandera.String] = pandera.Field(checks=driver_check)
+    helper1: Series[pandera.String] = pandera.Field(checks=helper_check)
+    helper2: Series[pandera.String] = pandera.Field(checks=helper_check)
+    helper3: Series[pandera.String] = pandera.Field(checks=helper_check)
+    helper4: Series[pandera.String] = pandera.Field(checks=helper_check)
+    helper5: Series[pandera.String] = pandera.Field(checks=helper_check)
+    company: Series[pandera.String] = pandera.Field(checks=company_check)
     warehouse: Series[pandera.String] = pandera.Field(checks=warehouse_check)
-    # flpgroup
-    # pricegroup
-    # subpricegroup
-    # salesrep
-    # voidflag
-    # voidreason
-    # invoicetype
-    # artype
-    # trucktype
-    # ponumber
-    # linenumber
-    # productcode
+    flpgroup: Series[pandera.String] = pandera.Field(checks=flpgroup_check)
+    pricegroup: Series[pandera.String] = pandera.Field(checks=pricegroup_check)
+    subpricegroup: Series[pandera.String] = pandera.Field(checks=subpricegroup_check)
+    salesrep: Series[pandera.String] = pandera.Field(checks=salesrep_check)
+    voidflag: Series[pandera.String] = pandera.Field(checks=voidflag_check)
+    voidreason: Series[pandera.String] = pandera.Field(checks=voidreason_check)
+    invoicetype: Series[pandera.String] = pandera.Field(checks=invoicetype_check)
+    artype: Series[pandera.String] = pandera.Field(checks=artype_check)
+    trucktype: Series[pandera.String] = pandera.Field(checks=trucktype_check)
+    ponumber: Series[pandera.String] = pandera.Field(checks=ponumber_check)
+    linenumber: Series[pandera.String] = pandera.Field(checks=linenumber_check)
+    productcode: Series[pandera.String] = pandera.Field(checks=productcode_check)
     # unitofmeasure # required if prodcutcode specified
     ordermode: Series[pandera.String] = pandera.Field(checks=ordermode_check)
     # orderquantity # required if productcode specified
