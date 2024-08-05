@@ -4,106 +4,12 @@ and invoice/sales history data before creating file to be uploaded to their GDI 
 """
 
 import re
-from typing import Required
+from typing import Optional
 
 import pandas
 import pandera
-from numpy import require
+from pandera import DataFrameModel, Field
 from pandera.typing import DataFrame, Index, Series
-
-"""
-Field Checks
-
-These checks are used to validate each field in the various models below. Generally,
-each unique field will have its own check. Checks are used to ensure that the
-data conforms to what is expected by VIP if a dataframe is exported into CSV format
-and uploaded into VIP's GDI system.
-
-Could alternatively make a check only for each unique data type rather than one
-for every individual field, but this way is more explicit and easier to change
-if there's an update to the required format and one field needs to be changed.
-"""
-arstatus_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["1", "3"])]
-artype_check = pandera.Check.str_length(1, 1)
-codedate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
-company_check = pandera.Check.str_length(1, 5)
-deliverydate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
-depletionallowance_check = [
-    pandera.Check.in_range(0, 999999.99999),
-    pandera.Check.str_matches(r"^\d{1,6}(\.\d{1,5})?$"),
-]
-depositamount_check = [
-    pandera.Check.in_range(0, 9999999.99),
-    pandera.Check.str_matches(r"^\d{1,7}(\.\d{1,2})?$"),
-]
-deposittype_check = pandera.Check.str_length(1, 1)
-discountamount_check = [
-    pandera.Check.in_range(0, 9999999.99),
-    pandera.Check.str_matches(r"^\d{1,7}(\.\d{1,2})?$"),
-]
-discountcode_check = pandera.Check.str_length(1, 10)
-discountgroup_check = pandera.Check.str_length(1, 10)
-discountlevel_check = pandera.Check.str_length(1, 1)
-discountlevel10_check = pandera.Check.str_length(10, 10)
-driver_check = pandera.Check.str_length(1, 5)
-flpgroup_check = pandera.Check.str_length(1, 5)
-helper_check = pandera.Check.str_length(1, 5)
-ignoredeliverycharge_check = [
-    pandera.Check.str_length(1, 1),
-    pandera.Check.isin(["Y", "N"]),
-]
-invoicecomments_check = pandera.Check.str_length(1, 560)
-invoicedate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
-invoicenumber_check = [
-    pandera.Check.str_length(1, 15),
-    pandera.Check.str_matches(r"^\d+$"),
-]
-invoicetype_check = pandera.Check.str_length(1, 1)
-linenumber_check = [pandera.Check.str_length(3, 3), pandera.Check.str_matches(r"^\d+$")]
-loadnumber_check = pandera.Check.str_length(8, 8)
-onhandquantity_check = pandera.Check.str_length(7, 7)
-orderaction_check = [
-    pandera.Check.str_length(1, 2)
-]  # Not actually sure what the valid values are
-ordercost_check = [
-    pandera.Check.in_range(0, 999999.99999),
-    pandera.Check.str_matches(r"^\d{1,7}(\.\d{1,2})?$"),
-]
-orderdate_check = pandera.Check.in_range(19700101, 20991231)  # YYYYMMDD
-ordermode_check = [
-    pandera.Check.str_length(1, 1),
-    pandera.Check.isin(["0", "1", "2", "3"]),
-]
-ordernumber_check = pandera.Check.str_length(1, 9)
-orderprice_check = [
-    pandera.Check.in_range(0, 999999999.999),
-    pandera.Check.str_matches(r"^\d{1,9}(\.\d{1,3})?$"),
-]
-ordertype_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["S", "T"])]
-orderquantity_check = pandera.Check.str_length(5, 5)
-outquantity_check = pandera.Check.str_length(5, 5)
-partialcasequantity_check = pandera.Check.str_length(2, 2)
-performancediscountanswer_check = [
-    pandera.Check.str_length(1, 1),
-    pandera.Check.isin(["Y", "N"]),
-]
-ponumber_check = pandera.Check.str_length(1, 15)
-postoffamount_check = [
-    pandera.Check.in_range(0, 9999999.99),
-    pandera.Check.str_matches(r"^\d{1,7}(\.\d{1,2})?$"),
-]
-pricegroup_check = pandera.Check.str_length(1, 5)
-productcode_check = pandera.Check.str_length(6, 6)
-reasoncode_check = pandera.Check.str_length(2, 2)
-retailerid_check = pandera.Check.str_length(5, 5)
-salesrep_check = pandera.Check.str_length(1, 5)
-specialprice_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["0", "1"])]
-subpricegroup_check = pandera.Check.str_length(1, 5)
-trucktype_check = pandera.Check.str_length(1, 1)
-unitofmeasure_check = [pandera.Check.str_length(2, 2), pandera.Check.isin(["CW", "CB"])]
-voidflag_check = [pandera.Check.str_length(1, 1), pandera.Check.isin(["Y", "N"])]
-voidreason_check = pandera.Check.str_length(1, 2)
-warehouse_check = pandera.Check.str_length(1, 5)
 
 
 class OrderModel(pandera.DataFrameModel):
@@ -122,56 +28,59 @@ class OrderModel(pandera.DataFrameModel):
     Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
     """
 
-    loadnumber: Series[pandera.String] = pandera.Field(checks=loadnumber_check)
-    retailerid: Series[pandera.String] = pandera.Field(
-        checks=retailerid_check, required=True
+    loadnumber: Optional[str] = Field(str_length={"min_value": 8, "max_value": 8})
+    driver: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
+    linenumber: str = Field(
+        str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
     )
-    driver: Series[pandera.String] = pandera.Field(checks=driver_check)
-    linenumber: Series[pandera.String] = pandera.Field(
-        checks=linenumber_check, required=True
+    unitofmeasure: str = Field(
+        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
     )
-    unitofmeasure: Series[pandera.String] = pandera.Field(
-        checks=unitofmeasure_check, required=True
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    orderquantity: str = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
     )
-    productcode: Series[pandera.String] = pandera.Field(
-        checks=productcode_check, required=True
+    orderprice: Optional[str] = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
+    discountamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    postoffamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    specialprice: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
     )
-    orderquantity: Series[pandera.String] = pandera.Field(
-        checks=orderquantity_check, required=True
+    voidflag: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    orderprice: Series[pandera.Float] = pandera.Field(checks=orderprice_check)
-    discountamount: Series[pandera.Float] = pandera.Field(checks=discountamount_check)
-    postoffamount: Series[pandera.Float] = pandera.Field(checks=postoffamount_check)
-    depositamount: Series[pandera.Float] = pandera.Field(checks=depositamount_check)
-    specialprice: Series[pandera.String] = pandera.Field(checks=specialprice_check)
-    voidflag: Series[pandera.String] = pandera.Field(checks=voidflag_check)
-    reasoncode: Series[pandera.String] = pandera.Field(checks=reasoncode_check)
-    codedate: Series[pandera.Int] = pandera.Field(checks=codedate_check)
-    deliverydate: Series[pandera.Int] = pandera.Field(
-        checks=deliverydate_check, required=True
+    reasoncode: Optional[str] = Field(str_length={"min_value": 2, "max_value": 2})
+    codedate: Optional[str] = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    ponumber: Series[pandera.String] = pandera.Field(checks=ponumber_check)
-    company: Series[pandera.String] = pandera.Field(checks=company_check, required=True)
-    warehouse: Series[pandera.String] = pandera.Field(
-        checks=warehouse_check, required=True
+    deliverydate: str = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    ordernumber: Series[pandera.String] = pandera.Field(checks=ordernumber_check)
-    performancediscountanswer: Series[pandera.String] = pandera.Field(
-        checks=performancediscountanswer_check
+    ponumber: Optional[str] = Field(str_length={"min_value": 1, "max_value": 15})
+    company: str = Field(str_length={"min_value": 1, "max_value": 5})
+    warehouse: str = Field(str_length={"min_value": 1, "max_value": 5})
+    ordernumber: str = Field(str_length={"min_value": 1, "max_value": 9})
+    performancediscountanswer: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    discountcode: Series[pandera.String] = pandera.Field(checks=discountcode_check)
-    discountgroup: Series[pandera.String] = pandera.Field(checks=discountgroup_check)
-    discountlevel: Series[pandera.String] = pandera.Field(checks=discountlevel_check)
-    ignoredeliverycharge: Series[pandera.String] = pandera.Field(
-        checks=ignoredeliverycharge_check
+    discountcode: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountgroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    ignoredeliverycharge: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    salesrep: Series[pandera.String] = pandera.Field(checks=salesrep_check)
-    orderdate: Series[pandera.Int] = pandera.Field(checks=orderdate_check)
-    invoicecomments: Series[pandera.String] = pandera.Field(
-        checks=invoicecomments_check
+    orderdate: Optional[str] = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    orderaction: Series[pandera.String] = pandera.Field(checks=orderaction_check)
-    ordertype: Series[pandera.String] = pandera.Field(checks=ordertype_check)
+    invoicecomments: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 560}
+    )
+    orderaction: Optional[str] = Field(str_length={"min_value": 1, "max_value": 2})
+    ordertype: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
+    )
 
 
 class InvoiceModel(pandera.DataFrameModel):
@@ -190,60 +99,78 @@ class InvoiceModel(pandera.DataFrameModel):
     Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
     """
 
-    retailerid: Series[pandera.String] = pandera.Field(
-        checks=retailerid_check, required=True
+    retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
+    invoicenumber: str = Field(
+        str_length={"min_value": 1, "max_value": 15}, str_matches=r"^\d+$"
     )
-    invoicenumber: Series[pandera.String] = pandera.Field(
-        checks=invoicenumber_check, required=True
+    invoicedate: str = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    invoicedate: Series[pandera.Int] = pandera.Field(
-        checks=invoicedate_check, required=True
+    arstatus: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["1", "3"]
     )
-    arstatus: Series[pandera.String] = pandera.Field(checks=arstatus_check)
-    ordertype: Series[pandera.String] = pandera.Field(checks=ordertype_check)
-    loadnumber: Series[pandera.String] = pandera.Field(checks=loadnumber_check)
-    driver: Series[pandera.String] = pandera.Field(checks=driver_check)
-    helper1: Series[pandera.String] = pandera.Field(checks=helper_check)
-    helper2: Series[pandera.String] = pandera.Field(checks=helper_check)
-    helper3: Series[pandera.String] = pandera.Field(checks=helper_check)
-    helper4: Series[pandera.String] = pandera.Field(checks=helper_check)
-    helper5: Series[pandera.String] = pandera.Field(checks=helper_check)
-    company: Series[pandera.String] = pandera.Field(checks=company_check)
-    warehouse: Series[pandera.String] = pandera.Field(checks=warehouse_check)
-    flpgroup: Series[pandera.String] = pandera.Field(checks=flpgroup_check)
-    pricegroup: Series[pandera.String] = pandera.Field(checks=pricegroup_check)
-    subpricegroup: Series[pandera.String] = pandera.Field(checks=subpricegroup_check)
-    salesrep: Series[pandera.String] = pandera.Field(checks=salesrep_check)
-    voidflag: Series[pandera.String] = pandera.Field(checks=voidflag_check)
-    voidreason: Series[pandera.String] = pandera.Field(checks=voidreason_check)
-    invoicetype: Series[pandera.String] = pandera.Field(checks=invoicetype_check)
-    artype: Series[pandera.String] = pandera.Field(checks=artype_check)
-    trucktype: Series[pandera.String] = pandera.Field(checks=trucktype_check)
-    ponumber: Series[pandera.String] = pandera.Field(checks=ponumber_check)
-    linenumber: Series[pandera.String] = pandera.Field(checks=linenumber_check)
-    productcode: Series[pandera.String] = pandera.Field(checks=productcode_check)
-    # unitofmeasure # required if prodcutcode specified
-    ordermode: Series[pandera.String] = pandera.Field(checks=ordermode_check)
-    # orderquantity # required if productcode specified
-    outquantity: Series[pandera.String] = pandera.Field(checks=outquantity_check)
-    onhandquantity: Series[pandera.String] = pandera.Field(checks=onhandquantity_check)
-    partialcasequantity: Series[pandera.String] = pandera.Field(
-        checks=partialcasequantity_check
+    ordertype: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
-    returnreasoncode: Series[pandera.String] = pandera.Field(checks=reasoncode_check)
-    codedate: Series[pandera.Int] = pandera.Field(checks=codedate_check)
-    # orderprice # required if productcode specified
-    ordercost: Series[pandera.Float] = pandera.Field(checks=ordercost_check)
-    depositamount: Series[pandera.Float] = pandera.Field(checks=depositamount_check)
-    deposittype: Series[pandera.String] = pandera.Field(checks=deposittype_check)
-    depletionallowance: Series[pandera.Float] = pandera.Field(
-        checks=depletionallowance_check
+    loadnumber: str = Field(str_length={"min_value": 8, "max_value": 8})
+    driver: str = Field(str_length={"min_value": 5, "max_value": 5})
+    helper1: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    helper2: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    helper3: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    helper4: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    helper5: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    company: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    warehouse: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    flpgroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    pricegroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    subpricegroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    salesrep: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
+    voidflag: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    postoffamount: Series[pandera.Float] = pandera.Field(checks=postoffamount_check)
-    discountamount: Series[pandera.Float] = pandera.Field(checks=discountamount_check)
-    discountlevel1: Series[pandera.String] = pandera.Field(checks=discountlevel10_check)
-    discountlevel2: Series[pandera.String] = pandera.Field(checks=discountlevel10_check)
-    discountlevel3: Series[pandera.String] = pandera.Field(checks=discountlevel10_check)
-    discountlevel4: Series[pandera.String] = pandera.Field(checks=discountlevel10_check)
-    discountlevel: Series[pandera.String] = pandera.Field(checks=discountlevel_check)
-    specialprice: Series[pandera.String] = pandera.Field(checks=specialprice_check)
+    voidreason: Optional[str] = Field(str_length={"min_value": 1, "max_value": 2})
+    invoicetype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    artype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    trucktype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    ponumber: Optional[str] = Field(str_length={"min_value": 1, "max_value": 15})
+    linenumber: str = Field(
+        str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
+    )
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    unitofmeasure: Optional[str] = Field(
+        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
+    )
+    ordermode: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1", "2", "3"]
+    )
+    orderquantity: Optional[str] = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    outquantity: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    onhandquantity: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 7}, str_matches=r"^\d+$"
+    )
+    partialcasequantity: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 2}, str_matches=r"^\d+$"
+    )
+    returnreasoncode: Optional[str] = Field(str_length={"min_value": 2, "max_value": 2})
+    codedate: Optional[str] = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+    )
+    orderprice: Optional[str] = Field(str_matches=r"^\d{1,6}(\.\d{1,3})?$")
+    ordercost: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    deposittype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    depletionallowance: Optional[str] = Field(str_matches=r"^\d{1,6}(\.\d{1,5})?$")
+    postoffamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountlevel1: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel2: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel3: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel4: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
+    specialprice: Optional[str] = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
+    )
