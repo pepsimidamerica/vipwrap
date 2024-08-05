@@ -9,7 +9,7 @@ from typing import IO, Literal
 
 import paramiko
 
-# import models
+import vippy.models
 
 
 def send_file_to_vip(
@@ -20,7 +20,7 @@ def send_file_to_vip(
     password: str,
     folder: str,
     file: IO[str],
-):
+) -> None:
     """
     Sends file to VIP via FTP or SFTP, depending on which method specified. The
     transfer is retried 3 times if it fails.
@@ -31,6 +31,7 @@ def send_file_to_vip(
     user: the username for the FTP/SFTP server
     password: the password for the FTP/SFTP server
     folder: the folder to upload the file to
+    file: file object to upload
     """
 
     def connect_sftp():
@@ -93,10 +94,3 @@ def send_file_to_vip(
                 time.sleep(60)  # Wait before retrying
             else:
                 raise  # Reraise the exception or handle it as needed
-
-
-if __name__ == "__main__":
-    """
-    Used only when testing
-    """
-    pass
