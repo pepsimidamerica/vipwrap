@@ -14,7 +14,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Jordan Maynor",
     author_email="jmaynor@pepsimidamerica.com",
-    url="https://github.com/pepsimidamerica/ezoff",
+    url="https://github.com/pepsimidamerica/vippy",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

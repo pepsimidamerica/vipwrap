@@ -1,5 +1,7 @@
 """
-Main file for vippy package. Primarily used to do FTP/SFTP imports into VIP.
+Module handles the actual uploading of files to VIP's GDI/GDI2 server.
+The module is largely just a wrapper around the paramiko and ftplib libraries
+for SFTP and FTP uploads, respectively.
 """
 
 import os
@@ -8,8 +10,6 @@ from ftplib import FTP
 from typing import IO, Literal
 
 import paramiko
-
-import vippy.models
 
 
 def send_file_to_vip(

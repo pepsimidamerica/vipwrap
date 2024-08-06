@@ -1,18 +1,35 @@
 """
-models represents all data models used in VIP imports. Used to validate order
-and invoice/sales history data before creating file to be uploaded to their GDI system.
+models represents all data models used in VIP imports. Orders and Invoices/Sales History
+Used to create and validate data as well as exporting to flat files for upload to VIP.
 """
 
 import re
+from datetime import datetime
 from typing import Optional
 
 import pandas
-import pandera
+import pandera.extensions as extensions
 from pandera import DataFrameModel, Field
-from pandera.typing import DataFrame, Index, Series
 
 
-class OrderModel(pandera.DataFrameModel):
+def get_valid_product_codes() -> list[str]:
+    """
+    Get list of valid product codes from VIP
+    TODO: Add actual implementation
+    """
+    return ["123456", "234567", "345678", "456789", "567890"]
+
+
+@extensions.register_check_method(statistics=["val"], check_type="element_wise")
+def product_code_check(product_code: str) -> bool:
+    """
+    Element-wise check to see whether each product code
+    is in list of valid product codes.
+    """
+    return product_code in get_valid_product_codes()
+
+
+class OrderModel(DataFrameModel):
     """
     This model represents a dataframe containing one or more orders.
     Upon import into VIP, they will be unprocessed and need to be ran through
@@ -82,8 +99,36 @@ class OrderModel(pandera.DataFrameModel):
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
 
+    @staticmethod
+    def generate_filename(id: str, datetime: datetime):
+        """
+        Generate the filename for the order file to be uploaded to VIP.
+        """
+        return f"85_ORDERS_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
 
-class InvoiceModel(pandera.DataFrameModel):
+    def to_flat_file(self, df: pandas.DataFrame, filename: str):
+        data_str = df.to_csv(sep="|", index=False, header=False)
+
+        field_names = list(self.__annotations__.keys())
+        header_str = "|".join(field_names)
+        data_str = df.to_csv(sep="|", index=False, header=False)
+
+        with open(filename, "w") as file:
+            file.write(header_str + "\n")
+            file.write(data_str)
+
+    @classmethod
+    def create_blank_order_batch(cls):
+        field_names = list(cls.__annotations__.keys())
+        blank_df = pandas.DataFrame(columns=field_names)
+        return blank_df
+
+    @classmethod
+    def add_order_line(cls, df: pandas.DataFrame, order_line: dict) -> pandas.DataFrame:
+        return df.append(order_line, ignore_index=True)
+
+
+class InvoiceModel(DataFrameModel):
     """
     This model represents invoices/sales history. No processing is done on this
     data, it is posted directly to the retailer's account. If anything posted
@@ -174,3 +219,19 @@ class InvoiceModel(pandera.DataFrameModel):
     specialprice: Optional[str] = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
     )
+
+    @staticmethod
+    def generate_filename(id: str, datetime: datetime):
+        """
+        Generate the filename for the invoice file to be uploaded to VIP.
+        """
+        return f"90_SALESHISTORY_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
+
+    def to_flat_file(self, df: pandas.DataFrame, filename: str):
+        data_str = df.to_csv(sep="|", index=False, header=False)
+        field_names = list(self.__annotations__.keys())
+        header_str = "|".join(field_names)
+
+        with open(filename, "w") as file:
+            file.write(header_str + "\n")
+            file.write(data_str)
