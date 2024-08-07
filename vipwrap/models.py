@@ -12,23 +12,6 @@ import pandera.extensions as extensions
 from pandera import DataFrameModel, Field
 
 
-def get_valid_product_codes() -> list[str]:
-    """
-    Get list of valid product codes from VIP
-    TODO: Add actual implementation
-    """
-    return ["123456", "234567", "345678", "456789", "567890"]
-
-
-@extensions.register_check_method(statistics=["val"], check_type="element_wise")
-def product_code_check(product_code: str) -> bool:
-    """
-    Element-wise check to see whether each product code
-    is in list of valid product codes.
-    """
-    return product_code in get_valid_product_codes()
-
-
 class OrderModel(DataFrameModel):
     """
     This model represents a dataframe containing one or more orders.

@@ -1,5 +1,5 @@
 """
-Initialization file for vippy package
+Initialization file for vipwrap package
 """
 
 from . import models, upload_handling

@@ -1,7 +1,5 @@
 # Summary
 
-TODO: Need to rename project. Conflicts with a a package on PyPI.
-
 At the moment, the package is mainly just a wrapper around FTP and SFTP libraries. It's used to upload files to VIP's GDI system. But could be expanded on with SQL functionality or if VIP ever added a genuine API in the future.
 
 As is, the point of the package is largely just defining how to upload a file to VIP in one place so it doesn't need to be rewritten every time a repo involving VIP is created and can instead just be imported.
@@ -10,7 +8,7 @@ There are also pandera models defined for an order and an invoice.
 
 ## Installation
 
-Add as submodule
+`pip install vipwrap`
 
 ## Usage
 

@@ -3,12 +3,13 @@ import unittest
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-from vippy.vippy import send_file_to_vip
+from vipwrap.upload_handling import send_file_to_vip
 
 
-class TestVippy(unittest.TestCase):
-    @patch("vippy.vippy.upload_sftp")
-    @patch("vippy.vippy.upload_ftp")
+class TestVipwrap(unittest.TestCase):
+
+    @patch("vipwrap.upload_handling.upload_sftp")
+    @patch("vipwrap.upload_handling.upload_ftp")
     def test_send_file_to_vip_sftp(self, mock_upload_ftp, mock_upload_sftp):
         # Mock the file object
         mock_file = StringIO("dummy file content")
@@ -28,8 +29,8 @@ class TestVippy(unittest.TestCase):
         mock_upload_sftp.assert_called_once_with(mock_file)
         mock_upload_ftp.assert_not_called()
 
-    @patch("vippy.vippy.upload_sftp")
-    @patch("vippy.vippy.upload_ftp")
+    @patch("vipwrap.upload_handling.upload_sftp")
+    @patch("vipwrap.upload_handling.upload_ftp")
     def test_send_file_to_vip_ftp(self, mock_upload_ftp, mock_upload_sftp):
         # Mock the file object
         mock_file = StringIO("dummy file content")
@@ -49,8 +50,8 @@ class TestVippy(unittest.TestCase):
         mock_upload_ftp.assert_called_once_with(mock_file)
         mock_upload_sftp.assert_not_called()
 
-    @patch("vippy.vippy.upload_sftp")
-    @patch("vippy.vippy.upload_ftp")
+    @patch("vipwrap.upload_handling.upload_sftp")
+    @patch("vipwrap.upload_handling.upload_ftp")
     def test_send_file_to_vip_invalid_method(self, mock_upload_ftp, mock_upload_sftp):
         # Mock the file object
         mock_file = StringIO("dummy file content")
