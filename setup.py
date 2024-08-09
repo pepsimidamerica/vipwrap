@@ -8,7 +8,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="vipwrap",
-    version="0.1.1",
+    version="0.1.2",
     description="Python package that allows interacting with VIP.",
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -2,4 +2,4 @@
 Initialization file for vipwrap package
 """
 
-from . import models, upload_handling
+from . import gdi, models
