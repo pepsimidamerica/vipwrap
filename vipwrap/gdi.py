@@ -58,11 +58,12 @@ def download_sftp(
     folder: str,
     file_string: str,
     download_after_delete: bool = False,
-) -> None:
+) -> list[str]:
     """
     Downloads all files in a folder on the VIP GDI server whose filenames start
     with the given string.
     """
+    downloaded_files = []
     with connect_sftp(host, port, user, password) as ssh:
         with ssh.open_sftp() as sftp:
             sftp.get_channel().settimeout(60)  # type: ignore
@@ -72,31 +73,43 @@ def download_sftp(
                     remote_path = folder + f
                     local_path = f
                     sftp.get(remote_path, local_path)
+                    downloaded_files.append(os.path.abspath(local_path))
                     if download_after_delete:
                         sftp.remove(remote_path)
+    return downloaded_files
 
 
 def download_ftp(
     host: str,
+    port: int,
     user: str,
     password: str,
     folder: str,
     file_string: str,
     download_after_delete: bool = False,
-) -> None:
+) -> list[str]:
     """
     Downloads all files in a folder on the VIP GDI server whose filenames start
     with the given string.
     """
-    with FTP(host) as ftp:
+    ftp = FTP()
+    downloaded_files = []
+    try:
+        ftp.connect(host, port)
         ftp.login(user, password)
         files = ftp.nlst(folder)
         for f in files:
-            if f.startswith(file_string):
-                with open(f, "wb") as local_file:
-                    ftp.retrbinary("RETR " + f, local_file.write)
+            filename = f.lstrip("/")
+            if filename.startswith(file_string):
+                with open(filename, "wb") as local_file:
+                    ftp.retrbinary("RETR " + filename, local_file.write)
+                downloaded_files.append(os.path.abspath(filename))
                 if download_after_delete:
-                    ftp.delete(f)
+                    ftp.delete(filename)
+    finally:
+        ftp.quit()
+
+    return downloaded_files
 
 
 def delete_sftp(
@@ -176,10 +189,12 @@ def download_files_from_gdi(
     folder: str,
     file_string: str,
     delete_after_download: bool = False,
-) -> None:
+) -> list[str]:
     """
     Downloads all files in a folder on the VIP GDI server whose filenames start
     with the given string.
+
+    Returns a list of paths to the downloaded files.
 
     ftp_method: whether to download via SFTP or FTP
     host: the hostname of the FTP/SFTP server
@@ -191,11 +206,13 @@ def download_files_from_gdi(
     delete_after_download: whether to delete the files from the server after downloading
     """
     if ftp_method == "sftp":
-        download_sftp(
+        return download_sftp(
             host, port, user, password, folder, file_string, delete_after_download
         )
     elif ftp_method == "ftp":
-        download_ftp(host, user, password, folder, file_string, delete_after_download)
+        return download_ftp(
+            host, port, user, password, folder, file_string, delete_after_download
+        )
     else:
         print("Error, invalid FTP method")
         raise ValueError("Error, invalid FTP method")
