@@ -34,7 +34,7 @@ Takes standard paramers expected for connecting to a remote FTP/SFTP server as w
 | - | - | - |
 | ftp_method | str | 'ftp' or 'sftp' |
 | host | str | the FTP server host |
-| port | int | the SFTP server port, not used with FTP |
+| port | int | the FTP/SFTP server port |
 | user | str | username to authenticate with |
 | password | str | password to authenticate with |
 | folder | str | the folder to download the files from, usually "/out/" or "/FROM_VIP/" |

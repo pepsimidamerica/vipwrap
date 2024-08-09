@@ -7,14 +7,14 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name="vippy",
-    version="0.1.0",
+    name="vipwrap",
+    version="0.1.2",
     description="Python package that allows interacting with VIP.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Jordan Maynor",
     author_email="jmaynor@pepsimidamerica.com",
-    url="https://github.com/pepsimidamerica/ezoff",
+    url="https://github.com/pepsimidamerica/vipwrap",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
