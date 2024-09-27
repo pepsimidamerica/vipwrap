@@ -8,7 +8,7 @@ At the moment, the package is mainly just a wrapper around FTP and SFTP librarie
 
 ## Usage
 
-Contains two modules, `gdi` and `models`. `gdi` covers the actual connection to VIP's GDI servers and the downloading/uploading of files. Largely just a wrapper arounf ftp libraries. Nothing VIP-specific happening in it. `models` contains two pandera models that describe order or sales history data. Has not been fully built out. At the moment, can be used for dataframe validation.
+Contains two modules, `gdi` and `models`. `gdi` covers the actual connection to VIP's GDI servers and the downloading/uploading of files. Largely just a wrapper around ftp libraries. Nothing VIP-specific happening in it. `models` contains two pandera models that describe order or sales history data. Has not been fully built out. At the moment, can be used for dataframe validation.
 
 ### Send File to GDI
 
