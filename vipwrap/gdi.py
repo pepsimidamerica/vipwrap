@@ -97,6 +97,7 @@ def download_ftp(
     try:
         ftp.connect(host, port)
         ftp.login(user, password)
+        ftp.cwd(folder)  # Change to the correct directory
         files = ftp.nlst(folder)
         for f in files:
             filename = f.lstrip("/")
