@@ -3,29 +3,17 @@ models represents all data models used in VIP imports. Orders and Invoices/Sales
 Used to create and validate data as well as exporting to flat files for upload to VIP.
 """
 
-import re
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-import pandas
-import pandera.extensions as extensions
-from pandera import DataFrameModel, Field
+import pandas as pd
+from pandera import DataFrameModel, Field, SeriesSchema, check_types
 
 
-class OrderModel(DataFrameModel):
+class OrderRowModel(SeriesSchema):
     """
-    This model represents a dataframe containing one or more orders.
-    Upon import into VIP, they will be unprocessed and need to be ran through
-    the various steps to send to the warehouse to get picked.
-
-    DataFrame Attributes:
-    SEQUENCE: 85
-    DATATYPE: ORDERS
-    ID: Unique identifier for each file, max of 10 digits (alphanumeric)
-    DATE: Date file was created, format YYYYMMDD
-    TIME: Time file was created, format HHMMSS
-
-    Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
+    This model represents a single row of an order. Each order can have multiple
+    rows. This model is used in the OrderBatchModel.
     """
 
     loadnumber: Optional[str] = Field(str_length={"min_value": 8, "max_value": 8})
@@ -82,6 +70,78 @@ class OrderModel(DataFrameModel):
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
 
+
+class OrderModel:
+    """
+    This model represents a single order. Each order can have multiple rows.
+    This model is used in the OrderBatchModel. An order is a dataframe
+    where each row is a dataframe series (OrderRowModel).
+    """
+
+    @check_types
+    def __init__(self):
+        self.df = pd.DataFrame(columns=list(OrderRowModel.__annotations__.keys()))
+
+    def add_order_line(self, order_line: dict):
+        # Automatically generate the linenumber
+        order_line["linenumber"] = str(len(self.df) + 1).zfill(3)
+        self.df = pd.concat([self.df, pd.DataFrame([order_line])], ignore_index=True)
+
+    def remove_order_line(self, productcode: str):
+        """
+        Remove an order line by its productcode.
+        """
+        if productcode in self.df["productcode"].values:
+            self.df = self.df[self.df["productcode"] != productcode].reset_index(
+                drop=True
+            )
+            # Re-generate linenumbers
+            self.df["linenumber"] = [str(i + 1).zfill(3) for i in range(len(self.df))]
+        else:
+            raise ValueError("Product code not found in order lines.")
+
+    # To string method for printing order dataframe
+    def __str__(self):
+        return self.df.to_string(index=False)
+
+
+class OrderBatchModel:
+    """
+    This model represents a batch of one or more orders to be processed by VIP.
+    Each order is represented by one or more OrderRowModels.
+
+    Upon import into VIP, they will be unprocessed and need to be ran through
+    the various steps to send to the warehouse to get picked.
+
+    DataFrame Attributes:
+    SEQUENCE: 85
+    DATATYPE: ORDERS
+    ID: Unique identifier for each file, max of 10 digits (alphanumeric)
+    DATE: Date file was created, format YYYYMMDD
+    TIME: Time file was created, format HHMMSS
+
+    Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
+    """
+
+    def __init__(self):
+        self.orders: List[OrderModel] = []
+
+    def add_order(self, order: OrderModel):
+        self.orders.append(order)
+
+    def to_flat_file(self, filename: str):
+        all_data = pd.concat([order.df for order in self.orders], ignore_index=True)
+        data_str = all_data.to_csv(
+            sep="|", index=False, header=False, lineterminator="\n"
+        )
+
+        field_names = list(OrderRowModel.__annotations__.keys())
+        header_str = "|".join(field_names)
+
+        with open(filename, "w", newline="") as file:
+            file.write(header_str + "\n")
+            file.write(data_str)
+
     @staticmethod
     def generate_filename(id: str, datetime: datetime):
         """
@@ -89,26 +149,8 @@ class OrderModel(DataFrameModel):
         """
         return f"85_ORDERS_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
 
-    def to_flat_file(self, df: pandas.DataFrame, filename: str):
-        data_str = df.to_csv(sep="|", index=False, header=False)
-
-        field_names = list(self.__annotations__.keys())
-        header_str = "|".join(field_names)
-        data_str = df.to_csv(sep="|", index=False, header=False)
-
-        with open(filename, "w") as file:
-            file.write(header_str + "\n")
-            file.write(data_str)
-
-    @classmethod
-    def create_blank_order_batch(cls):
-        field_names = list(cls.__annotations__.keys())
-        blank_df = pandas.DataFrame(columns=field_names)
-        return blank_df
-
-    @classmethod
-    def add_order_line(cls, df: pandas.DataFrame, order_line: dict) -> pandas.DataFrame:
-        return df.append(order_line, ignore_index=True)
+    def __str__(self):
+        return "\n".join([str(order) for order in self.orders])
 
 
 class InvoiceModel(DataFrameModel):
@@ -210,7 +252,7 @@ class InvoiceModel(DataFrameModel):
         """
         return f"90_SALESHISTORY_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
 
-    def to_flat_file(self, df: pandas.DataFrame, filename: str):
+    def to_flat_file(self, df: pd.DataFrame, filename: str):
         data_str = df.to_csv(sep="|", index=False, header=False)
         field_names = list(self.__annotations__.keys())
         header_str = "|".join(field_names)
