@@ -11,6 +11,8 @@ from typing import IO, Literal
 
 import paramiko
 
+from _logger import logger
+
 
 def connect_sftp(host: str, port: int, user: str, password: str):
     """
@@ -45,6 +47,9 @@ def upload_sftp(
             print("Local file size: ", local_file_size)
             print("Remote file size: ", remote_file_size)
             if local_file_size != remote_file_size:
+                logger.error(
+                    f"Error, file sizes do not match: {local_file_size} vs {remote_file_size}"
+                )
                 raise ValueError(
                     f"Error, file sizes do not match: {local_file_size} vs {remote_file_size}"
                 )
