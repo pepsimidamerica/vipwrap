@@ -9,7 +9,7 @@ from typing import Optional
 
 import pandas
 import pandera.extensions as extensions
-from pandera import DataFrameModel, Field
+from pandera.pandas import DataFrameModel, Field
 
 
 class OrderModel(DataFrameModel):
