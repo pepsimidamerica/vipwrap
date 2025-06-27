@@ -4,6 +4,7 @@ The orders module contains classes to aid in constructing order data.
 
 import io
 import logging
+from datetime import datetime
 from typing import Literal
 
 import pandas as pd
@@ -20,9 +21,6 @@ class OrderRow(SeriesSchema):
     rows. This model is used in the OrderBatchModel.
     """
 
-    loadnumber: str | None = Field(str_length={"min_value": 8, "max_value": 8})
-    driver: str | None = Field(str_length={"min_value": 5, "max_value": 5})
-    retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
     linenumber: str = Field(
         str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
     )
@@ -86,20 +84,6 @@ class Order:
     # Define the field names in the order they should appear in the output
     FIELD_NAMES = list(OrderRow.__annotations__.keys())
 
-    # Define which fields are header-level (order-level) fields
-    HEADER_FIELDS = [
-        "loadnumber",
-        "driver",
-        "retailerid",
-        "codedate",
-        "deliverydate",
-        "ponumber",
-        "company",
-        "warehouse",
-        "ordernumber",
-        "performancediscountanswer",
-    ]
-
     def __init__(
         self,
         retailerid: str,
@@ -120,19 +104,6 @@ class Order:
         logger.info(
             f"Creating new order for retailer {retailerid}, order number {ordernumber}"
         )
-        # # Store header fields
-        # self.header_fields = {
-        #     "retailerid": retailerid,
-        #     "company": company,
-        #     "warehouse": warehouse,
-        #     "ordernumber": ordernumber,
-        #     "deliverydate": deliverydate,
-        #     "loadnumber": loadnumber,
-        #     "driver": driver,
-        #     "codedate": codedate,
-        #     "ponumber": ponumber,
-        #     "performancediscountanswer": performancediscountanswer,
-        # }
 
         # Store each field
         self.retailerid = retailerid
@@ -145,6 +116,28 @@ class Order:
         self.codedate = codedate
         self.ponumber = ponumber
         self.performancediscountanswer = performancediscountanswer
+
+        # Validate that header fields don't exceed their max lengths
+        if len(self.retailerid) != 5:
+            raise ValueError("retailerid must be exactly 5 characters long")
+        if len(self.company) > 100:
+            raise ValueError("company must be at most 100 characters long")
+        if len(self.warehouse) > 100:
+            raise ValueError("warehouse must be at most 100 characters long")
+        if len(self.ordernumber) != 10:
+            raise ValueError("ordernumber must be exactly 10 characters long")
+        if self.loadnumber and len(self.loadnumber) != 10:
+            raise ValueError("loadnumber must be exactly 10 characters long")
+        if self.driver and len(self.driver) != 5:
+            raise ValueError("driver must be exactly 5 characters long")
+        if self.codedate and len(self.codedate) != 8:
+            raise ValueError("codedate must be exactly 8 characters long")
+        if self.ponumber and len(self.ponumber) != 10:
+            raise ValueError("ponumber must be exactly 10 characters long")
+        if self.performancediscountanswer and len(self.performancediscountanswer) != 1:
+            raise ValueError(
+                "performancediscountanswer must be exactly 1 character long"
+            )
 
         # Initialize empty dataframe for the line-level details
         self.order_lines = pd.DataFrame(columns=self.FIELD_NAMES)
@@ -313,6 +306,12 @@ class OrderBatch:
         Each order's lines are concatenated into a single DataFrame.
         """
         logger.info("Converting order batch to DataFrame")
+
+        # TODO Potentially want to break this up more. One thing is moving
+        # the line number functionality out of the Order class entirely. Only
+        # really needs to be calculated once we're here creating the final
+        # dataframe technically. So might move that logic here where we go through
+        # each order and do last minute adjustments like that.
         all_data = pd.concat(
             [order.order_lines for order in self.orders], ignore_index=True
         )
