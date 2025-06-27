@@ -5,12 +5,10 @@ Used to create and validate data as well as exporting to flat files for upload t
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
 
 import pandas as pd
 from pandera import DataFrameModel, Field, SeriesSchema, check_types
 
-# Configure logger
 logger = logging.getLogger(__name__)
 
 
@@ -20,8 +18,8 @@ class OrderRowModel(SeriesSchema):
     rows. This model is used in the OrderBatchModel.
     """
 
-    loadnumber: Optional[str] = Field(str_length={"min_value": 8, "max_value": 8})
-    driver: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
+    loadnumber: str | None = Field(str_length={"min_value": 8, "max_value": 8})
+    driver: str | None = Field(str_length={"min_value": 5, "max_value": 5})
     retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
     linenumber: str = Field(
         str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
@@ -33,44 +31,42 @@ class OrderRowModel(SeriesSchema):
     orderquantity: str = Field(
         str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
     )
-    orderprice: Optional[str] = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
-    discountamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    postoffamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    depositamount: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    specialprice: Optional[str] = Field(
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
+    discountamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    postoffamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    specialprice: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
     )
-    voidflag: Optional[str] = Field(
+    voidflag: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    reasoncode: Optional[str] = Field(str_length={"min_value": 2, "max_value": 2})
-    codedate: Optional[str] = Field(
+    reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    codedate: str | None = Field(
         str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
     deliverydate: str = Field(
         str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    ponumber: Optional[str] = Field(str_length={"min_value": 1, "max_value": 15})
+    ponumber: str | None = Field(str_length={"min_value": 1, "max_value": 15})
     company: str = Field(str_length={"min_value": 1, "max_value": 5})
     warehouse: str = Field(str_length={"min_value": 1, "max_value": 5})
     ordernumber: str = Field(str_length={"min_value": 1, "max_value": 9})
-    performancediscountanswer: Optional[str] = Field(
+    performancediscountanswer: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    discountcode: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountgroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    ignoredeliverycharge: Optional[str] = Field(
+    discountcode: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountgroup: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    ignoredeliverycharge: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    orderdate: Optional[str] = Field(
+    orderdate: str | None = Field(
         str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    invoicecomments: Optional[str] = Field(
-        str_length={"min_value": 1, "max_value": 560}
-    )
-    orderaction: Optional[str] = Field(str_length={"min_value": 1, "max_value": 2})
-    ordertype: Optional[str] = Field(
+    invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
+    orderaction: str | None = Field(str_length={"min_value": 1, "max_value": 2})
+    ordertype: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
 
@@ -109,11 +105,11 @@ class OrderModel:
         warehouse: str,
         ordernumber: str,
         deliverydate: str,
-        loadnumber: Optional[str] = None,
-        driver: Optional[str] = None,
-        codedate: Optional[str] = None,
-        ponumber: Optional[str] = None,
-        performancediscountanswer: Optional[str] = None,
+        loadnumber: str | None = None,
+        driver: str | None = None,
+        codedate: str | None = None,
+        ponumber: str | None = None,
+        performancediscountanswer: str | None = None,
     ):
         """
         Initialize an OrderModel with header-level fields that will be the same
@@ -137,28 +133,28 @@ class OrderModel:
         }
 
         # Initialize empty dataframe for order lines
-        self.df = pd.DataFrame(columns=self.FIELD_NAMES)
+        self.order_lines = pd.DataFrame(columns=self.FIELD_NAMES)
 
     def add_order_line(
         self,
         productcode: str,
         orderquantity: str,
         unitofmeasure: str,
-        orderprice: Optional[str] = None,
-        discountamount: Optional[str] = None,
-        postoffamount: Optional[str] = None,
-        depositamount: Optional[str] = None,
-        specialprice: Optional[str] = None,
-        voidflag: Optional[str] = None,
-        reasoncode: Optional[str] = None,
-        discountcode: Optional[str] = None,
-        discountgroup: Optional[str] = None,
-        discountlevel: Optional[str] = None,
-        ignoredeliverycharge: Optional[str] = None,
-        orderdate: Optional[str] = None,
-        invoicecomments: Optional[str] = None,
-        orderaction: Optional[str] = None,
-        ordertype: Optional[str] = None,
+        orderprice: str | None = None,
+        discountamount: str | None = None,
+        postoffamount: str | None = None,
+        depositamount: str | None = None,
+        specialprice: str | None = None,
+        voidflag: str | None = None,
+        reasoncode: str | None = None,
+        discountcode: str | None = None,
+        discountgroup: str | None = None,
+        discountlevel: str | None = None,
+        ignoredeliverycharge: str | None = None,
+        orderdate: str | None = None,
+        invoicecomments: str | None = None,
+        orderaction: str | None = None,
+        ordertype: str | None = None,
     ):
         """
         Add an order line to this order. The header fields will be automatically
@@ -190,7 +186,7 @@ class OrderModel:
             f"Adding order line for product {productcode}, quantity {orderquantity} {unitofmeasure}"
         )
         # Automatically generate the linenumber
-        linenumber = str(len(self.df) + 1).zfill(3)
+        linenumber = str(len(self.order_lines) + 1).zfill(3)
 
         # Create the order line dictionary with provided parameters
         complete_order_line = {
@@ -226,8 +222,8 @@ class OrderModel:
                 complete_order_line[field] = value
 
         # Add the order line to the dataframe
-        self.df = pd.concat(
-            [self.df, pd.DataFrame([complete_order_line])], ignore_index=True
+        self.order_lines = pd.concat(
+            [self.order_lines, pd.DataFrame([complete_order_line])], ignore_index=True
         )
         logger.info(
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
@@ -238,12 +234,14 @@ class OrderModel:
         Remove an order line by its productcode.
         """
         logger.info(f"Attempting to remove order line with product code {productcode}")
-        if productcode in self.df["productcode"].values:
-            self.df = self.df[self.df["productcode"] != productcode].reset_index(
-                drop=True
-            )
+        if productcode in self.order_lines["productcode"].values:
+            self.order_lines = self.order_lines[
+                self.order_lines["productcode"] != productcode
+            ].reset_index(drop=True)
             # Re-generate linenumbers
-            self.df["linenumber"] = [str(i + 1).zfill(3) for i in range(len(self.df))]
+            self.order_lines["linenumber"] = [
+                str(i + 1).zfill(3) for i in range(len(self.order_lines))
+            ]
             logger.info(
                 f"Successfully removed order line with product code {productcode}"
             )
@@ -252,15 +250,17 @@ class OrderModel:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-    def get_header_fields(self) -> Dict[str, str]:
+    def get_header_fields(self) -> dict[str, str]:
         """
         Get the header fields for this order.
         """
         return {k: v for k, v in self.header_fields.items() if v is not None}
 
-    # To string method for printing order dataframe
     def __str__(self):
-        return self.df.to_string(index=False)
+        """
+        Allows for printing order dataframe in a readable format.
+        """
+        return self.order_lines.to_string(index=False)
 
 
 class OrderBatchModel:
@@ -283,18 +283,32 @@ class OrderBatchModel:
 
     def __init__(self):
         logger.info("Creating new OrderBatchModel")
-        self.orders: List[OrderModel] = []
+        self.orders: list[OrderModel] = []
 
     def add_order(self, order: OrderModel):
+        """
+        Add an order to the batch.
+        """
         logger.info(
             f"Adding order for retailer {order.header_fields.get('retailerid')} to batch"
         )
         self.orders.append(order)
 
+    def remove_order(self, order: OrderModel):
+        """
+        Remove an order from the batch.
+        """
+        logger.info(
+            f"Removing order for retailer {order.header_fields.get('retailerid')} from batch"
+        )
+        self.orders.remove(order)
+
     def to_flat_file(self, filename: str):
         logger.info(f"Exporting order batch to flat file: {filename}")
         # Concatenate all order dataframes, preserving the original field order
-        all_data = pd.concat([order.df for order in self.orders], ignore_index=True)
+        all_data = pd.concat(
+            [order.order_lines for order in self.orders], ignore_index=True
+        )
 
         # Ensure all required columns are present in the correct order
         for col in OrderModel.FIELD_NAMES:
@@ -360,72 +374,72 @@ class InvoiceModel(DataFrameModel):
     invoicedate: str = Field(
         str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    arstatus: Optional[str] = Field(
+    arstatus: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["1", "3"]
     )
-    ordertype: Optional[str] = Field(
+    ordertype: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
     loadnumber: str = Field(str_length={"min_value": 8, "max_value": 8})
     driver: str = Field(str_length={"min_value": 5, "max_value": 5})
-    helper1: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
-    helper2: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
-    helper3: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
-    helper4: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
-    helper5: Optional[str] = Field(str_length={"min_value": 5, "max_value": 5})
-    company: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    warehouse: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    flpgroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    pricegroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    subpricegroup: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    salesrep: Optional[str] = Field(str_length={"min_value": 1, "max_value": 5})
-    voidflag: Optional[str] = Field(
+    helper1: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper2: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper3: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper4: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper5: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    company: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    warehouse: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    flpgroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    pricegroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    subpricegroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    salesrep: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    voidflag: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    voidreason: Optional[str] = Field(str_length={"min_value": 1, "max_value": 2})
-    invoicetype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    artype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    trucktype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    ponumber: Optional[str] = Field(str_length={"min_value": 1, "max_value": 15})
+    voidreason: str | None = Field(str_length={"min_value": 1, "max_value": 2})
+    invoicetype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    artype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    trucktype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    ponumber: str | None = Field(str_length={"min_value": 1, "max_value": 15})
     linenumber: str = Field(
         str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
     )
     productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
-    unitofmeasure: Optional[str] = Field(
+    unitofmeasure: str | None = Field(
         str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
     )
-    ordermode: Optional[str] = Field(
+    ordermode: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1", "2", "3"]
     )
-    orderquantity: Optional[str] = Field(
+    orderquantity: str | None = Field(
         str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
     )
-    outquantity: Optional[str] = Field(
+    outquantity: str | None = Field(
         str_length={"min_value": 1, "max_value": 5}, str_matches=r"^\d+$"
     )
-    onhandquantity: Optional[str] = Field(
+    onhandquantity: str | None = Field(
         str_length={"min_value": 1, "max_value": 7}, str_matches=r"^\d+$"
     )
-    partialcasequantity: Optional[str] = Field(
+    partialcasequantity: str | None = Field(
         str_length={"min_value": 1, "max_value": 2}, str_matches=r"^\d+$"
     )
-    returnreasoncode: Optional[str] = Field(str_length={"min_value": 2, "max_value": 2})
-    codedate: Optional[str] = Field(
+    returnreasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    codedate: str | None = Field(
         str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
     )
-    orderprice: Optional[str] = Field(str_matches=r"^\d{1,6}(\.\d{1,3})?$")
-    ordercost: Optional[str] = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    depositamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
-    deposittype: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    depletionallowance: Optional[str] = Field(str_matches=r"^\d{1,6}(\.\d{1,5})?$")
-    postoffamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
-    discountamount: Optional[str] = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
-    discountlevel1: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel2: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel3: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel4: Optional[str] = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel: Optional[str] = Field(str_length={"min_value": 1, "max_value": 1})
-    specialprice: Optional[str] = Field(
+    orderprice: str | None = Field(str_matches=r"^\d{1,6}(\.\d{1,3})?$")
+    ordercost: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    deposittype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    depletionallowance: str | None = Field(str_matches=r"^\d{1,6}(\.\d{1,5})?$")
+    postoffamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountlevel1: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel2: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel3: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel4: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    specialprice: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
     )
 

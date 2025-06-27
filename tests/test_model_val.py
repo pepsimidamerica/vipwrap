@@ -2,7 +2,7 @@ import sys
 from datetime import datetime
 
 sys.path.insert(0, "")
-from vipwrap.models import OrderBatchModel, OrderModel
+from vipwrap.vipwrap.models.models import OrderBatchModel, OrderModel
 
 
 def test_order_batch_model():
@@ -135,18 +135,18 @@ def test_order_batch_model():
 
     # Test removing an order line by productcode
     order1.remove_order_line("123456")
-    assert "123456" not in order1.df["productcode"].values
-    assert order1.df["linenumber"].tolist() == ["001"]
+    assert "123456" not in order1.order_lines["productcode"].values
+    assert order1.order_lines["linenumber"].tolist() == ["001"]
 
     order2.remove_order_line("654321")
-    assert "654321" not in order2.df["productcode"].values
-    assert order2.df["linenumber"].tolist() == ["001", "002"]
+    assert "654321" not in order2.order_lines["productcode"].values
+    assert order2.order_lines["linenumber"].tolist() == ["001", "002"]
 
     # Test that header fields are applied correctly
-    assert order1.df.loc[0, "retailerid"] == "12345"
-    assert order1.df.loc[0, "loadnumber"] == "12345678"
-    assert order2.df.loc[0, "retailerid"] == "54321"
-    assert order2.df.loc[0, "loadnumber"] == "87654321"
+    assert order1.order_lines.loc[0, "retailerid"] == "12345"
+    assert order1.order_lines.loc[0, "loadnumber"] == "12345678"
+    assert order2.order_lines.loc[0, "retailerid"] == "54321"
+    assert order2.order_lines.loc[0, "loadnumber"] == "87654321"
 
 
 if __name__ == "__main__":

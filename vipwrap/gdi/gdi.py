@@ -4,6 +4,7 @@ The module is largely just a wrapper around the paramiko and ftplib libraries
 for SFTP and FTP uploads, respectively.
 """
 
+import logging
 import os
 import time
 from ftplib import FTP
@@ -11,7 +12,7 @@ from typing import IO, Literal
 
 import paramiko
 
-from _logger import logger
+logger = logging.getLogger(__name__)
 
 
 def connect_sftp(host: str, port: int, user: str, password: str):
