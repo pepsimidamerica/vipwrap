@@ -1,16 +1,14 @@
-import sys
 from datetime import datetime
 
-sys.path.insert(0, "")
-from vipwrap.vipwrap.models.models import OrderBatchModel, OrderModel
+from vipwrap.vipwrap.models import Order, OrderBatch
 
 
 def test_order_batch_model():
     # Create an order batch
-    order_batch = OrderBatchModel()
+    order_batch = OrderBatch()
 
     # Create first order with header-level fields
-    order1 = OrderModel(
+    order1 = Order(
         retailerid="12345",
         company="COMP",
         warehouse="WHSE",
@@ -67,7 +65,7 @@ def test_order_batch_model():
     )
 
     # Create second order with header-level fields
-    order2 = OrderModel(
+    order2 = Order(
         retailerid="54321",
         company="COMP",
         warehouse="WHSE",
@@ -117,7 +115,7 @@ def test_order_batch_model():
     print(order_batch)
 
     # Export the order batch to a flat file
-    filename = OrderBatchModel.generate_filename("TESTID", datetime.now())
+    filename = OrderBatch.generate_filename("TESTID", datetime.now())
     order_batch.to_flat_file(filename)
 
     # Read the exported file and validate its content
@@ -126,12 +124,12 @@ def test_order_batch_model():
 
     # Validate the header and data rows
     lines = content.split("\n")
-    assert lines[0] == "|".join(OrderModel.FIELD_NAMES)
+    assert lines[0] == "|".join(Order.FIELD_NAMES)
     assert len(lines) == 7  # 1 header + 5 data rows + 1 empty row
 
     # Validate the data rows
     for line in lines[1:-1]:
-        assert len(line.split("|")) == len(OrderModel.FIELD_NAMES)
+        assert len(line.split("|")) == len(Order.FIELD_NAMES)
 
     # Test removing an order line by productcode
     order1.remove_order_line("123456")
@@ -150,5 +148,4 @@ def test_order_batch_model():
 
 
 if __name__ == "__main__":
-    # pytest.main()
     test_order_batch_model()
