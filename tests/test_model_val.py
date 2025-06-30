@@ -35,10 +35,6 @@ def test_order_batch_model():
         discountgroup="GRP1",
         discountlevel="1",
         ignoredeliverycharge="N",
-        orderdate="20230101",
-        invoicecomments="Test comment",
-        orderaction="01",
-        ordertype="S",
     )
 
     order1.add_order_line(
@@ -56,10 +52,6 @@ def test_order_batch_model():
         discountgroup="GRP2",
         discountlevel="2",
         ignoredeliverycharge="Y",
-        orderdate="20230102",
-        invoicecomments="Test comment 2",
-        orderaction="02",
-        ordertype="T",
     )
 
     # Create second order with header-level fields
@@ -92,10 +84,6 @@ def test_order_batch_model():
         discountgroup="GRP3",
         discountlevel="3",
         ignoredeliverycharge="N",
-        orderdate="20230103",
-        invoicecomments="Test comment 3",
-        orderaction="03",
-        ordertype="S",
     )
 
     # Add a different order line with minimal required parameters
@@ -105,6 +93,8 @@ def test_order_batch_model():
         unitofmeasure="CB",
         # Only providing required parameters to test defaults
     )
+
+    order2.add_order_comments("Test comment")
 
     # Add orders to the batch
     order_batch.add_order(order1)
@@ -121,7 +111,7 @@ def test_order_batch_model():
     # Validate the header and data rows
     lines = str(content).split("\n")
     assert lines[0] == "|".join(OrderModel.FIELD_NAMES())
-    assert len(lines) == 7  # 1 header + 5 data rows + 1 empty row
+    assert len(lines) == 8
 
     # Validate the data rows
     for line in lines[1:-1]:
@@ -129,18 +119,18 @@ def test_order_batch_model():
 
     # Test removing an order line by productcode
     order1.remove_order_line("123456")
-    assert "123456" not in order1.order_lines["productcode"].values
-    assert order1.order_lines["linenumber"].tolist() == ["001"]
+    assert all(line.productcode != "123456" for line in order1.order_lines)
+    assert len(order1.order_lines) == 1
 
     order2.remove_order_line("654321")
-    assert "654321" not in order2.order_lines["productcode"].values
-    assert order2.order_lines["linenumber"].tolist() == ["001", "002"]
+    assert all(line.productcode != "654321" for line in order2.order_lines)
+    assert len(order2.order_lines) == 2
 
-    # Test that header fields are applied correctly
-    assert order1.order_lines.loc[0, "retailerid"] == "12345"
-    assert order1.order_lines.loc[0, "loadnumber"] == "12345678"
-    assert order2.order_lines.loc[0, "retailerid"] == "54321"
-    assert order2.order_lines.loc[0, "loadnumber"] == "87654321"
+    # Test that header fields are applied correctly (now on the Order object)
+    assert order1.retailerid == "12345"
+    assert order1.loadnumber == "12345678"
+    assert order2.retailerid == "54321"
+    assert order2.loadnumber == "87654321"
 
 
 if __name__ == "__main__":

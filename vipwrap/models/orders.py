@@ -299,9 +299,10 @@ class Order:
 
     def __str__(self):
         """
-        Allows for printing order dataframe in a readable format.
+        Prints a string representation of the order, including header fields
+        and number of order lines.
         """
-        return self.order_lines.to_string(index=False)
+        return f"Order({self.retailerid}, {self.company}, {len(self.order_lines)})"
 
 
 class OrderBatch:

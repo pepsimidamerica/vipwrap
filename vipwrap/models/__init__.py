@@ -4,6 +4,6 @@ and invoice info for use in the GDI system.
 """
 
 from .models import InvoiceModel, OrderModel
-from .orders import Order, OrderBatch, OrderRow
+from .orders import Order, OrderBatch
 
-__all__ = ["OrderBatch", "Order", "OrderRow", "InvoiceModel", "OrderModel"]
+__all__ = ["OrderBatch", "Order", "InvoiceModel", "OrderModel"]
