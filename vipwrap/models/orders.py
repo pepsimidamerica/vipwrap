@@ -14,6 +14,9 @@ from .models import OrderModel
 
 logger = logging.getLogger(__name__)
 
+# Define the field names in the order they should appear in the output
+FIELD_NAMES = OrderModel.FIELD_NAMES()
+
 
 class OrderRow(SeriesSchema):
     """
@@ -21,9 +24,6 @@ class OrderRow(SeriesSchema):
     rows. This model is used in the OrderBatchModel.
     """
 
-    linenumber: str = Field(
-        str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
-    )
     unitofmeasure: str = Field(
         str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
     )
@@ -81,9 +81,6 @@ class Order:
     order line, while still preserving the complete flat file structure.
     """
 
-    # Define the field names in the order they should appear in the output
-    FIELD_NAMES = list(OrderRow.__annotations__.keys())
-
     def __init__(
         self,
         retailerid: str,
@@ -140,7 +137,7 @@ class Order:
             )
 
         # Initialize empty dataframe for the line-level details
-        self.order_lines = pd.DataFrame(columns=self.FIELD_NAMES)
+        self.order_lines = pd.DataFrame(columns=FIELD_NAMES)
 
     def add_order_line(
         self,
@@ -189,15 +186,19 @@ class Order:
         - orderaction: Up to 2 character action code
         - ordertype: "S" or "T"
         """
+
+        # Check that productcode not already present
+        if productcode in self.order_lines["productcode"].values:
+            error_msg = f"Product code {productcode} is already present in order lines."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
         logger.info(
             f"Adding order line for product {productcode}, quantity {orderquantity} {unitofmeasure}"
         )
-        # Automatically generate the linenumber
-        linenumber = str(len(self.order_lines) + 1).zfill(3)
 
         # Create the order line dictionary with provided parameters
         complete_order_line = {
-            "linenumber": linenumber,
             "productcode": productcode,
             "orderquantity": orderquantity,
             "unitofmeasure": unitofmeasure,
@@ -245,12 +246,25 @@ class Order:
             self.order_lines = self.order_lines[
                 self.order_lines["productcode"] != productcode
             ].reset_index(drop=True)
-            # Re-generate linenumbers
-            self.order_lines["linenumber"] = [
-                str(i + 1).zfill(3) for i in range(len(self.order_lines))
-            ]
             logger.info(
                 f"Successfully removed order line with product code {productcode}"
+            )
+        else:
+            error_msg = f"Product code {productcode} not found in order lines."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+    def update_order_line(self, productcode: str, **kwargs):
+        """
+        Update an existing order line with new values.
+        """
+        logger.info(f"Attempting to update order line with product code {productcode}")
+        if productcode in self.order_lines["productcode"].values:
+            self.order_lines.loc[
+                self.order_lines["productcode"] == productcode, list(kwargs.keys())
+            ] = list(kwargs.values())
+            logger.info(
+                f"Successfully updated order line with product code {productcode}"
             )
         else:
             error_msg = f"Product code {productcode} not found in order lines."
@@ -317,12 +331,12 @@ class OrderBatch:
         )
 
         # Ensure all required columns are present in the correct order
-        for col in Order.FIELD_NAMES:
+        for col in FIELD_NAMES:
             if col not in all_data.columns:
                 all_data[col] = None
 
         # Reorder columns to match the expected field order
-        all_data = all_data[Order.FIELD_NAMES]
+        all_data = all_data[FIELD_NAMES]
 
         # Validate the DataFrame against the OrderModel
         OrderModel.validate(all_data)
@@ -339,7 +353,7 @@ class OrderBatch:
         data_str = all_data.to_csv(
             sep="|", index=False, header=False, lineterminator="\n"
         )
-        header_str = "|".join(Order.FIELD_NAMES)
+        header_str = "|".join(FIELD_NAMES)
 
         output = io.BytesIO()
         output.write((header_str + "\n").encode("utf-8"))

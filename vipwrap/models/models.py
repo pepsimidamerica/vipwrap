@@ -73,6 +73,43 @@ class OrderModel(DataFrameModel):
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
     )
 
+    @classmethod
+    def FIELD_NAMES(cls) -> list[str]:
+        """
+        Returns the field names of the model as a list.
+        """
+        return [
+            "loadnumber",
+            "driver",
+            "retailerid",
+            "linenumber",
+            "unitofmeasure",
+            "productcode",
+            "orderquantity",
+            "orderprice",
+            "discountamount",
+            "postoffamount",
+            "depositamount",
+            "specialprice",
+            "voidflag",
+            "reasoncode",
+            "codedate",
+            "deliverydate",
+            "ponumber",
+            "company",
+            "warehouse",
+            "ordernumber",
+            "performancediscountanswer",
+            "discountcode",
+            "discountgroup",
+            "discountlevel",
+            "ignoredeliverycharge",
+            "orderdate",
+            "invoicecomments",
+            "orderaction",
+            "ordertype",
+        ]
+
 
 class InvoiceModel(DataFrameModel):
     """
@@ -165,3 +202,58 @@ class InvoiceModel(DataFrameModel):
     specialprice: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
     )
+
+    @classmethod
+    def FIELD_NAMES(cls) -> list[str]:
+        """
+        Returns the field names of the model as a list.
+        """
+        return [
+            "retailerid",
+            "invoicenumber",
+            "invoicedate",
+            "arstatus",
+            "ordertype",
+            "loadnumber",
+            "driver",
+            "helper1",
+            "helper2",
+            "helper3",
+            "helper4",
+            "helper5",
+            "company",
+            "warehouse",
+            "flpgroup",
+            "pricegroup",
+            "subpricegroup",
+            "salesrep",
+            "voidflag",
+            "voidreason",
+            "invoicetype",
+            "artype",
+            "trucktype",
+            "ponumber",
+            "linenumber",
+            "productcode",
+            "unitofmeasure",
+            "ordermode",
+            "orderquantity",
+            "outquantity",
+            "onhandquantity",
+            "partialcasequantity",
+            "returnreasoncode",
+            "codedate",
+            "orderprice",
+            "ordercost",
+            "depositamount",
+            "deposittype",
+            "depletionallowance",
+            "postoffamount",
+            "discountamount",
+            "discountlevel1",
+            "discountlevel2",
+            "discountlevel3",
+            "discountlevel4",
+            "discountlevel",
+            "specialprice",
+        ]

@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from vipwrap.vipwrap.models import Order, OrderBatch
+from vipwrap.models import Order, OrderBatch, OrderModel
 
 
 def test_order_batch_model():
@@ -115,21 +113,19 @@ def test_order_batch_model():
     print(order_batch)
 
     # Export the order batch to a flat file
-    filename = OrderBatch.generate_filename("TESTID", datetime.now())
-    order_batch.to_flat_file(filename)
+    flat_file = order_batch.to_flat_file()
 
-    # Read the exported file and validate its content
-    with open(filename, "r") as file:
-        content = file.read()
+    # Read the file and validate its content
+    content = flat_file.read()
 
     # Validate the header and data rows
-    lines = content.split("\n")
-    assert lines[0] == "|".join(Order.FIELD_NAMES)
+    lines = str(content).split("\n")
+    assert lines[0] == "|".join(OrderModel.FIELD_NAMES())
     assert len(lines) == 7  # 1 header + 5 data rows + 1 empty row
 
     # Validate the data rows
     for line in lines[1:-1]:
-        assert len(line.split("|")) == len(Order.FIELD_NAMES)
+        assert len(line.split("|")) == len(OrderModel.FIELD_NAMES())
 
     # Test removing an order line by productcode
     order1.remove_order_line("123456")
