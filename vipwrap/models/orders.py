@@ -20,8 +20,8 @@ FIELD_NAMES = OrderModel.FIELD_NAMES()
 
 class OrderRow(SeriesSchema):
     """
-    This model represents a single row of an order. Each order can have multiple
-    rows. This model is used in the OrderBatchModel.
+    OrderRow represents a single row of an order. Each order can have multiple
+    rows.
     """
 
     unitofmeasure: str = Field(
@@ -42,16 +42,6 @@ class OrderRow(SeriesSchema):
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
     reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
-    codedate: str | None = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
-    )
-    deliverydate: str = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
-    )
-    ponumber: str | None = Field(str_length={"min_value": 1, "max_value": 15})
-    company: str = Field(str_length={"min_value": 1, "max_value": 5})
-    warehouse: str = Field(str_length={"min_value": 1, "max_value": 5})
-    ordernumber: str = Field(str_length={"min_value": 1, "max_value": 9})
     performancediscountanswer: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
@@ -61,24 +51,18 @@ class OrderRow(SeriesSchema):
     ignoredeliverycharge: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
     )
-    orderdate: str | None = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
-    )
     invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
-    orderaction: str | None = Field(str_length={"min_value": 1, "max_value": 2})
-    ordertype: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
-    )
 
 
 class Order:
     """
-    This model represents a single order. Each order can have multiple rows.
-    This model is used in the OrderBatchModel. An order is a dataframe
-    where each row is a dataframe series (OrderRow).
+    Order represents a single order for a given retailer. Each order can have
+    multiple rows.
 
-    The OrderModel now maintains header-level fields that are the same for every
-    order line, while still preserving the complete flat file structure.
+    While working with order data, the productcode is considered the primary key
+    that identifies each row. Only one row per productcode is allowed.
+    Once a batch of orders are being exported, the linenumber will be added for each
+    order line.
     """
 
     def __init__(
@@ -93,10 +77,27 @@ class Order:
         codedate: str | None = None,
         ponumber: str | None = None,
         performancediscountanswer: str | None = None,
+        orderdate: str | None = None,
+        orderaction: str | None = None,
+        ordertype: Literal["S", "T"] | None = None,
     ):
         """
-        Initialize an OrderModel with header-level fields that will be the same
+        Initialize an Order with header-level fields that will be the same
         for all order lines.
+
+        :param retailerid: The ID of the retailer
+        :param company: The company name
+        :param warehouse: The warehouse location
+        :param ordernumber: The order number
+        :param deliverydate: The delivery date. YYYYMMDD
+        :param loadnumber: The load number (optional)
+        :param driver: The driver ID (optional)
+        :param codedate: The code date. YYYYMMDD (optional)
+        :param ponumber: The DSD or PO number (optional)
+        :param performancediscountanswer: The performance discount answer (optional)
+        :param orderdate: The order date. YYYYMMDD (optional)
+        :param orderaction: The order action. Combine, Lock, DTT (optional)
+        :param ordertype: The order type. Sales = "S", Transfer = "T" (optional)
         """
         logger.info(
             f"Creating new order for retailer {retailerid}, order number {ordernumber}"
@@ -113,6 +114,9 @@ class Order:
         self.codedate = codedate
         self.ponumber = ponumber
         self.performancediscountanswer = performancediscountanswer
+        self.orderdate = orderdate
+        self.orderaction = orderaction
+        self.ordertype = ordertype
 
         # Validate that header fields don't exceed their max lengths
         if len(self.retailerid) != 5:
@@ -135,15 +139,24 @@ class Order:
             raise ValueError(
                 "performancediscountanswer must be exactly 1 character long"
             )
+        if self.orderdate and len(self.orderdate) != 8:
+            raise ValueError("orderdate must be exactly 8 characters long")
+        if self.orderaction and len(self.orderaction) != 2:
+            raise ValueError("orderaction must be exactly 2 characters long")
+        if self.ordertype and self.ordertype not in ["S", "T"]:
+            raise ValueError("ordertype must be either 'S' or 'T'")
 
-        # Initialize empty dataframe for the line-level details
-        self.order_lines = pd.DataFrame(columns=FIELD_NAMES)
+        # Create list to hold each order line as an OrderRow
+        self.order_lines: list[OrderRow] = []
+        self.order_comments: list[OrderRow] = []
 
     def add_order_line(
         self,
         productcode: str,
         orderquantity: str,
-        unitofmeasure: str,
+        unitofmeasure: Literal[
+            "CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"
+        ],
         orderprice: str | None = None,
         discountamount: str | None = None,
         postoffamount: str | None = None,
@@ -155,40 +168,32 @@ class Order:
         discountgroup: str | None = None,
         discountlevel: str | None = None,
         ignoredeliverycharge: Literal["Y", "N"] | None = None,
-        orderdate: str | None = None,
-        invoicecomments: str | None = None,
-        orderaction: str | None = None,
-        ordertype: Literal["S", "T"] | None = None,
     ):
         """
         Add an order line to this order. The header fields will be automatically
         added to the order line.
 
-        Required Parameters:
-        - productcode: 6-character product code
-        - orderquantity: 5-digit order quantity
-        - unitofmeasure: 2-character unit of measure (CW or CB)
-
-        Optional Parameters:
-        - orderprice: Price in format of digits with up to 3 decimal places
-        - discountamount: Discount amount in format of digits with up to 2 decimal places
-        - postoffamount: Post-off amount in format of digits with up to 2 decimal places
-        - depositamount: Deposit amount in format of digits with up to 2 decimal places
-        - specialprice: "0" or "1"
-        - voidflag: "Y" or "N"
-        - reasoncode: 2-character reason code
-        - discountcode: Up to 10 character discount code
-        - discountgroup: Up to 10 character discount group
-        - discountlevel: 1-character discount level
-        - ignoredeliverycharge: "Y" or "N"
-        - orderdate: Date in format YYYYMMDD
-        - invoicecomments: Up to 560 character comments
-        - orderaction: Up to 2 character action code
-        - ordertype: "S" or "T"
+        :param productcode: 6-character product code (required)
+        :param orderquantity: 5-digit order quantity (required)
+        :param unitofmeasure: 2-character unit of measure, CW = Case Wine, CB = case beer, BW = bottle wine, HK = Half Keg, QK=Quarter Keg, MI=Miscellaneous, CS= Case Soda, FS = Fountain Syrup, PO = Postmix, PR = Premix (required)
+        :param orderprice: Price in format of digits with up to 3 decimal places (optional)
+        :param discountamount: Discount amount in format of digits with up to 2 decimal places (optional)
+        :param postoffamount: Post-off amount in format of digits with up to 2 decimal places (optional)
+        :param depositamount: Deposit amount in format of digits with up to 2 decimal places (optional)
+        :param specialprice: "0" or "1". 0 = No special price, 1 = Special price applies (optional)
+        :param voidflag: "Y" or "N" (optional)
+        :param reasoncode: 2-character reason code (optional)
+        :param discountcode: Up to 10 character discount code (optional)
+        :param discountgroup: Up to 10 character discount group (optional)
+        :param discountlevel: 1-character discount level (optional)
+        :param ignoredeliverycharge: "Y" or "N" (optional)
         """
 
         # Check that productcode not already present
-        if productcode in self.order_lines["productcode"].values:
+        if any(
+            getattr(line, "productcode", None) == productcode
+            for line in self.order_lines
+        ):
             error_msg = f"Product code {productcode} is already present in order lines."
             logger.error(error_msg)
             raise ValueError(error_msg)
@@ -213,10 +218,6 @@ class Order:
             "discountgroup": discountgroup,
             "discountlevel": discountlevel,
             "ignoredeliverycharge": ignoredeliverycharge,
-            "orderdate": orderdate,
-            "invoicecomments": invoicecomments,
-            "orderaction": orderaction,
-            "ordertype": ordertype,
         }
 
         # Remove None values to avoid overriding header values
@@ -224,28 +225,45 @@ class Order:
             k: v for k, v in complete_order_line.items() if v is not None
         }
 
-        # Add header fields to the order line
-        for field, value in self.header_fields.items():
-            if value is not None:  # Only set non-None values
-                complete_order_line[field] = value
-
-        # Add the order line to the dataframe
-        self.order_lines = pd.concat(
-            [self.order_lines, pd.DataFrame([complete_order_line])], ignore_index=True
-        )
+        # Add the order line to order_lines
+        self.order_lines.append(OrderRow(complete_order_line))
         logger.info(
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
         )
+
+    def add_order_comments(self, comments: str):
+        """
+        VIP allows comments to be added to an order. These take the form of a row
+        in the order data with some specific formatting.
+        Note: Comments will line break over 70 characters when viewed in the
+        VIP interface.
+        """
+        logger.info(f"Adding order comments: {comments}")
+        order_line = {
+            "productcode": "000997",  # A specific product code used for comments
+            "orderquantity": "00000",
+            "unitofmeasure": "MI",
+            "invoicecomments": comments,
+        }
+
+        self.order_comments.append(OrderRow(order_line))
 
     def remove_order_line(self, productcode: str):
         """
         Remove an order line by its productcode.
         """
+
         logger.info(f"Attempting to remove order line with product code {productcode}")
-        if productcode in self.order_lines["productcode"].values:
-            self.order_lines = self.order_lines[
-                self.order_lines["productcode"] != productcode
-            ].reset_index(drop=True)
+
+        # Check that productcode is present
+        if any(
+            getattr(line, "productcode", None) == productcode
+            for line in self.order_lines
+        ):
+            # If so, remove the corresponding order line
+            self.order_lines = [
+                line for line in self.order_lines if line.productcode != productcode
+            ]
             logger.info(
                 f"Successfully removed order line with product code {productcode}"
             )
@@ -257,12 +275,20 @@ class Order:
     def update_order_line(self, productcode: str, **kwargs):
         """
         Update an existing order line with new values.
+
+        :param productcode: The product code of the order line to update.
+        :param kwargs: The fields to update and their new values.
         """
-        logger.info(f"Attempting to update order line with product code {productcode}")
-        if productcode in self.order_lines["productcode"].values:
-            self.order_lines.loc[
-                self.order_lines["productcode"] == productcode, list(kwargs.keys())
-            ] = list(kwargs.values())
+
+        # Find the order line to update
+        order_line = next(
+            (line for line in self.order_lines if line.productcode == productcode), None
+        )
+
+        if order_line:
+            # Update the order line with new values
+            for key, value in kwargs.items():
+                setattr(order_line, key, value)
             logger.info(
                 f"Successfully updated order line with product code {productcode}"
             )
@@ -280,8 +306,9 @@ class Order:
 
 class OrderBatch:
     """
-    This model represents a batch of one or more orders to be processed by VIP.
-    Each order is represented by one or more OrderRow.
+    OrderBatch represents a batch of one or more orders to be processed by VIP.
+    Each order is represented by one or more OrderRows. It is the highest level
+    data structure for managing orders.
 
     Upon import into VIP, they will be unprocessed and need to be ran through
     the various steps to send to the warehouse to get picked.
@@ -321,27 +348,35 @@ class OrderBatch:
         """
         logger.info("Converting order batch to DataFrame")
 
-        # TODO Potentially want to break this up more. One thing is moving
-        # the line number functionality out of the Order class entirely. Only
-        # really needs to be calculated once we're here creating the final
-        # dataframe technically. So might move that logic here where we go through
-        # each order and do last minute adjustments like that.
-        all_data = pd.concat(
-            [order.order_lines for order in self.orders], ignore_index=True
-        )
+        df_orders = pd.DataFrame()
+        for order in self.orders:
+            # Create list of linenumbers for each order
+            # Each linenumber is a 3-digit string starting from 001
+            line_count = len(order.order_lines)
+            if order.order_comments is not None:
+                line_count += len(order.order_comments)
+            line_numbers = [f"{i + 1:03}" for i in range(line_count)]
+
+            # Create a DataFrame for the order lines
+            order_df = pd.concat(
+                [pd.DataFrame(order.order_lines), pd.DataFrame(order.order_comments)],
+                ignore_index=True,
+            )
+            order_df["linenumber"] = line_numbers
+            df_orders = pd.concat([df_orders, order_df], ignore_index=True)
 
         # Ensure all required columns are present in the correct order
         for col in FIELD_NAMES:
-            if col not in all_data.columns:
-                all_data[col] = None
+            if col not in df_orders.columns:
+                df_orders[col] = None
 
         # Reorder columns to match the expected field order
-        all_data = all_data[FIELD_NAMES]
+        df_orders = df_orders[FIELD_NAMES]
 
         # Validate the DataFrame against the OrderModel
-        OrderModel.validate(all_data)
+        OrderModel.validate(df_orders)
 
-        return all_data
+        return df_orders
 
     def to_flat_file(self) -> io.BytesIO:
         """
