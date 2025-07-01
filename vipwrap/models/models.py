@@ -2,7 +2,7 @@
 models contains models used to validate Orders and Invoices/Sales History data.
 """
 
-from pandera import DataFrameModel, Field
+from pandera.pandas import DataFrameModel, Field, SeriesSchema
 
 
 class OrderModel(DataFrameModel):
@@ -109,6 +109,42 @@ class OrderModel(DataFrameModel):
             "orderaction",
             "ordertype",
         ]
+
+
+class OrderRowModel(SeriesSchema):
+    """
+    OrderRow represents a single row of an order. Each order can have multiple
+    rows.
+    """
+
+    unitofmeasure: str = Field(
+        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
+    )
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    orderquantity: str = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
+    discountamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    postoffamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    specialprice: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
+    )
+    voidflag: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+    )
+    reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    performancediscountanswer: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+    )
+    discountcode: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountgroup: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    ignoredeliverycharge: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+    )
+    invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
 
 
 class InvoiceModel(DataFrameModel):

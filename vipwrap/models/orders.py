@@ -4,13 +4,13 @@ The orders module contains classes to aid in constructing order data.
 
 import io
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
 import pandas as pd
-from pandera import Field, SeriesSchema
 
-from .models import OrderModel
+from .models import OrderModel, OrderRowModel
 
 logger = logging.getLogger(__name__)
 
@@ -18,40 +18,23 @@ logger = logging.getLogger(__name__)
 FIELD_NAMES = OrderModel.FIELD_NAMES()
 
 
-class OrderRow(SeriesSchema):
-    """
-    OrderRow represents a single row of an order. Each order can have multiple
-    rows.
-    """
-
-    unitofmeasure: str = Field(
-        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
-    )
-    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
-    orderquantity: str = Field(
-        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
-    )
-    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
-    discountamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    postoffamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    depositamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    specialprice: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
-    )
-    voidflag: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
-    )
-    reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
-    performancediscountanswer: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
-    )
-    discountcode: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountgroup: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
-    ignoredeliverycharge: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
-    )
-    invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
+@dataclass
+class OrderRow:
+    productcode: str
+    orderquantity: str
+    unitofmeasure: str
+    orderprice: str | None = None
+    discountamount: str | None = None
+    postoffamount: str | None = None
+    depositamount: str | None = None
+    specialprice: str | None = None
+    voidflag: str | None = None
+    reasoncode: str | None = None
+    discountcode: str | None = None
+    discountgroup: str | None = None
+    discountlevel: str | None = None
+    ignoredeliverycharge: str | None = None
+    invoicecomments: str | None = None
 
 
 class Order:
@@ -125,16 +108,16 @@ class Order:
             raise ValueError("company must be at most 100 characters long")
         if len(self.warehouse) > 100:
             raise ValueError("warehouse must be at most 100 characters long")
-        if len(self.ordernumber) != 10:
-            raise ValueError("ordernumber must be exactly 10 characters long")
-        if self.loadnumber and len(self.loadnumber) != 10:
-            raise ValueError("loadnumber must be exactly 10 characters long")
+        if len(self.ordernumber) > 9:
+            raise ValueError("ordernumber must be at most 9 characters long")
+        if self.loadnumber and len(self.loadnumber) != 8:
+            raise ValueError("loadnumber must be exactly 8 characters long")
         if self.driver and len(self.driver) != 5:
             raise ValueError("driver must be exactly 5 characters long")
         if self.codedate and len(self.codedate) != 8:
             raise ValueError("codedate must be exactly 8 characters long")
-        if self.ponumber and len(self.ponumber) != 10:
-            raise ValueError("ponumber must be exactly 10 characters long")
+        if self.ponumber and len(self.ponumber) > 15:
+            raise ValueError("ponumber must be at most 15 characters long")
         if self.performancediscountanswer and len(self.performancediscountanswer) != 1:
             raise ValueError(
                 "performancediscountanswer must be exactly 1 character long"
@@ -225,8 +208,10 @@ class Order:
             k: v for k, v in complete_order_line.items() if v is not None
         }
 
-        # Add the order line to order_lines
-        self.order_lines.append(OrderRow(complete_order_line))
+        # Validate the order line
+        # series_test = pd.Series(complete_order_line)
+        # OrderRowModel().validate(pd.Series(complete_order_line))
+        self.order_lines.append(OrderRow(**complete_order_line))
         logger.info(
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
         )
@@ -246,7 +231,9 @@ class Order:
             "invoicecomments": comments,
         }
 
-        self.order_comments.append(OrderRow(order_line))
+        # Validate the comment row as well
+        # OrderRowModel().validate(pd.Series(order_line))
+        self.order_comments.append(OrderRow(**order_line))
 
     def remove_order_line(self, productcode: str):
         """
