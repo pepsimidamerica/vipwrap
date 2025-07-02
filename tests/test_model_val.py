@@ -1,3 +1,5 @@
+from datetime import date
+
 from vipwrap.models import Order, OrderBatch, OrderModel
 
 
@@ -11,10 +13,10 @@ def test_order_batch_model():
         company="COMP",
         warehouse="WHSE",
         ordernumber="ORD123456",
-        deliverydate="20230102",
+        deliverydate=date(2025, 7, 2),
         loadnumber="12345678",
         driver="ABCDE",
-        codedate="20230101",
+        codedate=date(2025, 7, 2),
         ponumber="PO12345",
         performancediscountanswer="Y",
     )
@@ -22,12 +24,12 @@ def test_order_batch_model():
     # Add order lines with explicit parameters
     order1.add_order_line(
         productcode="123456",
-        orderquantity="00010",
+        orderquantity=10,
         unitofmeasure="CW",
-        orderprice="100.00",
-        discountamount="10.00",
-        postoffamount="5.00",
-        depositamount="2.00",
+        orderprice=100.00,
+        discountamount=10.00,
+        postoffamount=5.00,
+        depositamount=2.00,
         specialprice="0",
         voidflag="N",
         reasoncode="01",
@@ -39,12 +41,12 @@ def test_order_batch_model():
 
     order1.add_order_line(
         productcode="654321",
-        orderquantity="00020",
+        orderquantity=20,
         unitofmeasure="CB",
-        orderprice="200.00",
-        discountamount="20.00",
-        postoffamount="10.00",
-        depositamount="4.00",
+        orderprice=200.00,
+        discountamount=20.00,
+        postoffamount=10.00,
+        depositamount=4.00,
         specialprice="1",
         voidflag="Y",
         reasoncode="02",
@@ -60,10 +62,10 @@ def test_order_batch_model():
         company="COMP",
         warehouse="WHSE",
         ordernumber="ORD789012",
-        deliverydate="20230106",
+        deliverydate=date(2025, 7, 2),
         loadnumber="87654321",
         driver="EDCBA",
-        codedate="20230105",
+        codedate=date(2025, 7, 1),
         ponumber="PO67890",
         performancediscountanswer="Y",
     )
@@ -71,12 +73,12 @@ def test_order_batch_model():
     # Add order lines with explicit parameters
     order2.add_order_line(
         productcode="654321",
-        orderquantity="00030",
+        orderquantity=30,
         unitofmeasure="CW",
-        orderprice="300.00",
-        discountamount="30.00",
-        postoffamount="15.00",
-        depositamount="6.00",
+        orderprice=300.00,
+        discountamount=30.00,
+        postoffamount=15.00,
+        depositamount=6.00,
         specialprice="0",
         voidflag="N",
         reasoncode="03",
@@ -89,7 +91,7 @@ def test_order_batch_model():
     # Add a different order line with minimal required parameters
     order2.add_order_line(
         productcode="123456",
-        orderquantity="00040",
+        orderquantity=40,
         unitofmeasure="CB",
         # Only providing required parameters to test defaults
     )
@@ -101,6 +103,8 @@ def test_order_batch_model():
     order_batch.add_order(order2)
 
     print(order_batch)
+
+    df_batch = order_batch.to_dataframe()
 
     # Export the order batch to a flat file
     flat_file = order_batch.to_flat_file()

@@ -21,56 +21,87 @@ class OrderModel(DataFrameModel):
     Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
     """
 
-    loadnumber: str | None = Field(str_length={"min_value": 8, "max_value": 8})
-    driver: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    loadnumber: str | None = Field(
+        str_length={"min_value": 8, "max_value": 8}, nullable=True
+    )
+    driver: str | None = Field(
+        str_length={"min_value": 5, "max_value": 5}, nullable=True
+    )
     retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
     linenumber: str = Field(
         str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
     )
     unitofmeasure: str = Field(
-        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
+        str_length={"min_value": 2, "max_value": 2},
+        isin=["CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"],
     )
     productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
     orderquantity: str = Field(
         str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
     )
-    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
-    discountamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    postoffamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    depositamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$", nullable=True)
+    discountamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    postoffamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    depositamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
     specialprice: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"], nullable=True
     )
     voidflag: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    reasoncode: str | None = Field(
+        str_length={"min_value": 2, "max_value": 2}, nullable=True
+    )
     codedate: str | None = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
     )
-    deliverydate: str = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+    deliverydate: str | None = Field(
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
     )
-    ponumber: str | None = Field(str_length={"min_value": 1, "max_value": 15})
+    ponumber: str | None = Field(
+        str_length={"min_value": 1, "max_value": 15}, nullable=True
+    )
     company: str = Field(str_length={"min_value": 1, "max_value": 5})
     warehouse: str = Field(str_length={"min_value": 1, "max_value": 5})
     ordernumber: str = Field(str_length={"min_value": 1, "max_value": 9})
     performancediscountanswer: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    discountcode: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountgroup: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    discountcode: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountgroup: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountlevel: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, nullable=True
+    )
     ignoredeliverycharge: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
     orderdate: str | None = Field(
-        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
     )
-    invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
-    orderaction: str | None = Field(str_length={"min_value": 1, "max_value": 2})
+    invoicecomments: str | None = Field(
+        str_length={"min_value": 1, "max_value": 560}, nullable=True
+    )
+    orderaction: str | None = Field(
+        str_length={"min_value": 1, "max_value": 2}, nullable=True
+    )
     ordertype: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"], nullable=True
     )
 
     @classmethod
@@ -124,27 +155,43 @@ class OrderRowModel(SeriesSchema):
     orderquantity: str = Field(
         str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
     )
-    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$")
-    discountamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    postoffamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
-    depositamount: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$", nullable=True)
+    discountamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    postoffamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    depositamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
     specialprice: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"], nullable=True
     )
     voidflag: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    reasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    reasoncode: str | None = Field(
+        str_length={"min_value": 2, "max_value": 2}, nullable=True
+    )
     performancediscountanswer: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    discountcode: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountgroup: str | None = Field(str_length={"min_value": 1, "max_value": 10})
-    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    discountcode: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountgroup: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountlevel: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, nullable=True
+    )
     ignoredeliverycharge: str | None = Field(
-        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    invoicecomments: str | None = Field(str_length={"min_value": 1, "max_value": 560})
+    invoicecomments: str | None = Field(
+        str_length={"min_value": 1, "max_value": 560}, nullable=True
+    )
 
 
 class InvoiceModel(DataFrameModel):

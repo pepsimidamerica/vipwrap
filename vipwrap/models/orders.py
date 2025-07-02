@@ -57,6 +57,31 @@ class OrderRow:
     ignoredeliverycharge: str | None = None
     invoicecomments: str | None = None
 
+    def __post_init__(self):
+        """
+        Validate the length of fields to ensure they meet the requirements
+        """
+        if len(self.productcode) != 6:
+            raise ValueError("productcode must be exactly 6 characters long")
+        if len(self.unitofmeasure) != 2:
+            raise ValueError("unitofmeasure must be exactly 2 characters long")
+        if self.orderquantity < 0 or self.orderquantity > 99999:
+            raise ValueError("orderquantity must be between 0 and 99999")
+        if self.specialprice and self.specialprice not in ["0", "1"]:
+            raise ValueError("specialprice must be '0' or '1'")
+        if self.voidflag and self.voidflag not in ["Y", "N"]:
+            raise ValueError("voidflag must be 'Y' or 'N'")
+        if self.reasoncode and len(self.reasoncode) != 2:
+            raise ValueError("reasoncode must be exactly 2 characters long")
+        if self.discountcode and len(self.discountcode) > 10:
+            raise ValueError("discountcode must be at most 10 characters long")
+        if self.discountgroup and len(self.discountgroup) > 10:
+            raise ValueError("discountgroup must be at most 10 characters long")
+        if self.discountlevel and len(self.discountlevel) != 1:
+            raise ValueError("discountlevel must be exactly 1 character long")
+        if self.ignoredeliverycharge and self.ignoredeliverycharge not in ["Y", "N"]:
+            raise ValueError("ignoredeliverycharge must be 'Y' or 'N'")
+
 
 class Order:
     """
@@ -343,6 +368,7 @@ class OrderBatch:
         """
         Convert the batch of orders to a single DataFrame.
         Each order's lines are concatenated into a single DataFrame.
+        Ensures all date columns are strings in YYYYMMDD format and all columns are strings before validation/export.
         """
         logger.info("Converting order batch to DataFrame")
         df_orders = pd.DataFrame()
@@ -388,19 +414,30 @@ class OrderBatch:
 
             order_df = pd.DataFrame(rows_dicts)
 
-            # Header-level conversions
+            # Add header-level fields to each row
+            order_df["retailerid"] = order.retailerid
+            order_df["company"] = order.company
+            order_df["warehouse"] = order.warehouse
+            order_df["ordernumber"] = order.ordernumber
+            order_df["deliverydate"] = order.deliverydate
+            order_df["loadnumber"] = order.loadnumber
+            order_df["driver"] = order.driver
+            order_df["codedate"] = order.codedate
+            order_df["ponumber"] = order.ponumber
+            order_df["performancediscountanswer"] = order.performancediscountanswer
+            order_df["orderdate"] = order.orderdate
+            order_df["orderaction"] = order.orderaction
+            order_df["ordertype"] = order.ordertype
 
-            # Convert date fields to YYYYMMDD strings
-            if "deliverydate" in order_df and isinstance(
-                order_df["deliverydate"], date
-            ):
-                order_df["deliverydate"] = order_df["deliverydate"].dt.strftime(
-                    "%Y%m%d"
-                )
-            if "codedate" in order_df and isinstance(order_df["codedate"], date):
-                order_df["codedate"] = order_df["codedate"].dt.strftime("%Y%m%d")
-            if "orderdate" in order_df and isinstance(order_df["orderdate"], date):
-                order_df["orderdate"] = order_df["orderdate"].dt.strftime("%Y%m%d")
+            # Header-level conversions: convert date fields to YYYYMMDD strings if not None
+            for date_col in ["deliverydate", "codedate", "orderdate"]:
+                if date_col in order_df:
+                    # Convert each value in the column to string if it's a date, else leave as is
+                    order_df[date_col] = order_df[date_col].apply(
+                        lambda x: x.strftime("%Y%m%d")
+                        if isinstance(x, (datetime, date))
+                        else (str(x) if x is not None else None)
+                    )
 
             # Create list of linenumbers for each order. Each linenumber is a 3-digit string starting from 001
             line_count = len(all_rows)
@@ -416,6 +453,10 @@ class OrderBatch:
 
         # Reorder columns to match the expected field order
         df_orders = df_orders[FIELD_NAMES]
+
+        # # Replace None/NaN with empty string, then cast to string
+        # df_orders = df_orders.where(pd.notnull(df_orders), "")
+        # df_orders = df_orders.astype(str)
 
         # Validate the DataFrame against the OrderModel
         OrderModel.validate(df_orders)
