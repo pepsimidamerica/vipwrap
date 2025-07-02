@@ -5,12 +5,12 @@ The orders module contains classes to aid in constructing order data.
 import io
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 import pandas as pd
 
-from .models import OrderModel, OrderRowModel
+from .models import OrderModel
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,34 @@ FIELD_NAMES = OrderModel.FIELD_NAMES()
 
 @dataclass
 class OrderRow:
+    """
+    OrderRow represents a single row of order data in an given order.
+    Each row corresponds to a product, with its associated details.
+
+    :param productcode: 6-character product code
+    :param orderquantity: 5-digit order quantity
+    :param unitofmeasure: The unit of measure for the order quantity
+    :param orderprice: Price in format of digits with up to 3 decimal places (optional)
+    :param discountamount: Discount amount in format of digits with up to 2 decimal places
+    :param postoffamount: Post-off amount in format of digits with up to 2 decimal places (optional)
+    :param depositamount: Deposit amount in format of digits with up to 2 decimal places
+    :param specialprice: "0" or "1". 0 = No special price, 1 = Special price applies (optional)
+    :param voidflag: "Y" or "N" (optional)
+    :param reasoncode: 2-character reason code (optional)
+    :param discountcode: Up to 10 character discount code (optional)
+    :param discountgroup: Up to 10 character discount group (optional)
+    :param discountlevel: 1-character discount level (optional)
+    :param ignoredeliverycharge: "Y" or "N" (optional)
+    :param invoicecomments: Comments for the invoice (optional)
+    """
+
     productcode: str
-    orderquantity: str
+    orderquantity: int
     unitofmeasure: str
-    orderprice: str | None = None
-    discountamount: str | None = None
-    postoffamount: str | None = None
-    depositamount: str | None = None
+    orderprice: float | None = None
+    discountamount: float | None = None
+    postoffamount: float | None = None
+    depositamount: float | None = None
     specialprice: str | None = None
     voidflag: str | None = None
     reasoncode: str | None = None
@@ -54,13 +75,13 @@ class Order:
         company: str,
         warehouse: str,
         ordernumber: str,
-        deliverydate: str,
+        deliverydate: date,
         loadnumber: str | None = None,
         driver: str | None = None,
-        codedate: str | None = None,
+        codedate: date | None = None,
         ponumber: str | None = None,
         performancediscountanswer: str | None = None,
-        orderdate: str | None = None,
+        orderdate: date | None = None,
         orderaction: str | None = None,
         ordertype: Literal["S", "T"] | None = None,
     ):
@@ -72,13 +93,13 @@ class Order:
         :param company: The company name
         :param warehouse: The warehouse location
         :param ordernumber: The order number
-        :param deliverydate: The delivery date. YYYYMMDD
+        :param deliverydate: The delivery date
         :param loadnumber: The load number (optional)
         :param driver: The driver ID (optional)
-        :param codedate: The code date. YYYYMMDD (optional)
+        :param codedate: The code date (optional)
         :param ponumber: The DSD or PO number (optional)
         :param performancediscountanswer: The performance discount answer (optional)
-        :param orderdate: The order date. YYYYMMDD (optional)
+        :param orderdate: The order date (optional)
         :param orderaction: The order action. Combine, Lock, DTT (optional)
         :param ordertype: The order type. Sales = "S", Transfer = "T" (optional)
         """
@@ -114,16 +135,12 @@ class Order:
             raise ValueError("loadnumber must be exactly 8 characters long")
         if self.driver and len(self.driver) != 5:
             raise ValueError("driver must be exactly 5 characters long")
-        if self.codedate and len(self.codedate) != 8:
-            raise ValueError("codedate must be exactly 8 characters long")
         if self.ponumber and len(self.ponumber) > 15:
             raise ValueError("ponumber must be at most 15 characters long")
         if self.performancediscountanswer and len(self.performancediscountanswer) != 1:
             raise ValueError(
                 "performancediscountanswer must be exactly 1 character long"
             )
-        if self.orderdate and len(self.orderdate) != 8:
-            raise ValueError("orderdate must be exactly 8 characters long")
         if self.orderaction and len(self.orderaction) != 2:
             raise ValueError("orderaction must be exactly 2 characters long")
         if self.ordertype and self.ordertype not in ["S", "T"]:
@@ -136,14 +153,14 @@ class Order:
     def add_order_line(
         self,
         productcode: str,
-        orderquantity: str,
+        orderquantity: int,
         unitofmeasure: Literal[
             "CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"
         ],
-        orderprice: str | None = None,
-        discountamount: str | None = None,
-        postoffamount: str | None = None,
-        depositamount: str | None = None,
+        orderprice: float | None = None,
+        discountamount: float | None = None,
+        postoffamount: float | None = None,
+        depositamount: float | None = None,
         specialprice: Literal["0", "1"] | None = None,
         voidflag: Literal["Y", "N"] | None = None,
         reasoncode: str | None = None,
@@ -156,9 +173,9 @@ class Order:
         Add an order line to this order. The header fields will be automatically
         added to the order line.
 
-        :param productcode: 6-character product code (required)
-        :param orderquantity: 5-digit order quantity (required)
-        :param unitofmeasure: 2-character unit of measure, CW = Case Wine, CB = case beer, BW = bottle wine, HK = Half Keg, QK=Quarter Keg, MI=Miscellaneous, CS= Case Soda, FS = Fountain Syrup, PO = Postmix, PR = Premix (required)
+        :param productcode: 6-character product code
+        :param orderquantity: 5-digit order quantity
+        :param unitofmeasure: 2-character unit of measure, CW = Case Wine, CB = case beer, BW = bottle wine, HK = Half Keg, QK=Quarter Keg, MI=Miscellaneous, CS= Case Soda, FS = Fountain Syrup, PO = Postmix, PR = Premix
         :param orderprice: Price in format of digits with up to 3 decimal places (optional)
         :param discountamount: Discount amount in format of digits with up to 2 decimal places (optional)
         :param postoffamount: Post-off amount in format of digits with up to 2 decimal places (optional)
@@ -207,10 +224,6 @@ class Order:
         complete_order_line = {
             k: v for k, v in complete_order_line.items() if v is not None
         }
-
-        # Validate the order line
-        # series_test = pd.Series(complete_order_line)
-        # OrderRowModel().validate(pd.Series(complete_order_line))
         self.order_lines.append(OrderRow(**complete_order_line))
         logger.info(
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
@@ -226,13 +239,10 @@ class Order:
         logger.info(f"Adding order comments: {comments}")
         order_line = {
             "productcode": "000997",  # A specific product code used for comments
-            "orderquantity": "00000",
+            "orderquantity": 0,
             "unitofmeasure": "MI",
             "invoicecomments": comments,
         }
-
-        # Validate the comment row as well
-        # OrderRowModel().validate(pd.Series(order_line))
         self.order_comments.append(OrderRow(**order_line))
 
     def remove_order_line(self, productcode: str):
@@ -335,22 +345,68 @@ class OrderBatch:
         Each order's lines are concatenated into a single DataFrame.
         """
         logger.info("Converting order batch to DataFrame")
-
         df_orders = pd.DataFrame()
-        for order in self.orders:
-            # Create list of linenumbers for each order
-            # Each linenumber is a 3-digit string starting from 001
-            line_count = len(order.order_lines)
-            if order.order_comments is not None:
-                line_count += len(order.order_comments)
-            line_numbers = [f"{i + 1:03}" for i in range(line_count)]
 
-            # Create a DataFrame for the order lines
-            order_df = pd.concat(
-                [pd.DataFrame(order.order_lines), pd.DataFrame(order.order_comments)],
-                ignore_index=True,
-            )
+        for order in self.orders:
+            all_rows = order.order_lines + order.order_comments
+            rows_dicts = []
+
+            # Row-level conversions
+            for row in all_rows:
+                row_dict = row.__dict__.copy()
+
+                # Convert numeric fields to formatted strings
+                if (
+                    "orderquantity" in row_dict
+                    and row_dict["orderquantity"] is not None
+                ):
+                    if isinstance(row_dict["orderquantity"], int):
+                        row_dict["orderquantity"] = f"{row_dict['orderquantity']:05}"
+                if "orderprice" in row_dict and row_dict["orderprice"] is not None:
+                    if isinstance(row_dict["orderprice"], float):
+                        row_dict["orderprice"] = f"{row_dict['orderprice']:.3f}"
+                if (
+                    "discountamount" in row_dict
+                    and row_dict["discountamount"] is not None
+                ):
+                    if isinstance(row_dict["discountamount"], float):
+                        row_dict["discountamount"] = f"{row_dict['discountamount']:.2f}"
+                if (
+                    "postoffamount" in row_dict
+                    and row_dict["postoffamount"] is not None
+                ):
+                    if isinstance(row_dict["postoffamount"], float):
+                        row_dict["postoffamount"] = f"{row_dict['postoffamount']:.2f}"
+                if (
+                    "depositamount" in row_dict
+                    and row_dict["depositamount"] is not None
+                ):
+                    if isinstance(row_dict["depositamount"], float):
+                        row_dict["depositamount"] = f"{row_dict['depositamount']:.2f}"
+
+                rows_dicts.append(row_dict)
+
+            order_df = pd.DataFrame(rows_dicts)
+
+            # Header-level conversions
+
+            # Convert date fields to YYYYMMDD strings
+            if "deliverydate" in order_df and isinstance(
+                order_df["deliverydate"], date
+            ):
+                order_df["deliverydate"] = order_df["deliverydate"].dt.strftime(
+                    "%Y%m%d"
+                )
+            if "codedate" in order_df and isinstance(order_df["codedate"], date):
+                order_df["codedate"] = order_df["codedate"].dt.strftime("%Y%m%d")
+            if "orderdate" in order_df and isinstance(order_df["orderdate"], date):
+                order_df["orderdate"] = order_df["orderdate"].dt.strftime("%Y%m%d")
+
+            # Create list of linenumbers for each order. Each linenumber is a 3-digit string starting from 001
+            line_count = len(all_rows)
+            line_numbers = [f"{i + 1:03}" for i in range(line_count)]
             order_df["linenumber"] = line_numbers
+
             df_orders = pd.concat([df_orders, order_df], ignore_index=True)
 
         # Ensure all required columns are present in the correct order
