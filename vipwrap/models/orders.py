@@ -294,6 +294,13 @@ class Order:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
+    def remove_order_comments(self):
+        """
+        Clears out all order comments from the order.
+        """
+        logger.info("Removing all order comments")
+        self.order_comments.clear()
+
     def update_order_line(self, productcode: str, **kwargs):
         """
         Update an existing order line with new values.
