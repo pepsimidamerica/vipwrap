@@ -468,6 +468,13 @@ class OrderBatch:
         # Validate the DataFrame against the OrderModel
         OrderModel.validate(df_orders)
 
+        # Add dataframe attributes for completeness
+        df_orders.attrs["SEQUENCE"] = "85"
+        df_orders.attrs["DATATYPE"] = "ORDERS"
+        df_orders.attrs["ID"] = "0000000000"  # Placeholder for ID
+        df_orders.attrs["DATE"] = datetime.now().strftime("%Y%m%d")
+        df_orders.attrs["TIME"] = datetime.now().strftime("%H%M%S")
+
         return df_orders
 
     def to_flat_file(self) -> io.BytesIO:
