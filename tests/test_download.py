@@ -6,13 +6,18 @@ from vipwrap import gdi
 
 
 def test_download_ftp():
-    # downloaded_files = gdi.download_files_from_gdi(
-    #     "ftp", "localhost", 10021, "myuser", "mypass", "/", "test", False
-    # )
-    # downloaded_files = gdi.download_files_from_gdi(
-    #     "sftp", "localhost", 10022, "foo", "pass", "/upload/", "test", False
-    # )
-    pass
+    downloaded_files = gdi.download_files_from_gdi(
+        ftp_method="ftp",
+        host="sftp.vtinfo.com",
+        port=21,
+        user="username here",
+        password="password here",
+        folder="/out",
+        file_string="POSTPICKV",
+        delete_after_download=False,
+    )
+
+    print("Downloaded files:", downloaded_files)
 
 
 if __name__ == "__main__":
