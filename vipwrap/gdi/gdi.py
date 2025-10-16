@@ -214,11 +214,23 @@ def download_files_from_gdi(
     """
     if ftp_method == "sftp":
         return download_sftp(
-            host, port, user, password, folder, file_string, delete_after_download
+            host,
+            port,
+            user,
+            password,
+            folder,
+            file_string,
+            delete_after_download,
         )
     elif ftp_method == "ftp":
         return download_ftp(
-            host, port, user, password, folder, file_string, delete_after_download
+            host,
+            port,
+            user,
+            password,
+            folder,
+            file_string,
+            delete_after_download,
         )
     else:
         print("Error, invalid FTP method")

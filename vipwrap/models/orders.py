@@ -254,7 +254,7 @@ class Order:
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
         )
 
-    def add_order_comments(self, comments: str):
+    def add_order_comments(self, comments: str) -> None:
         """
         VIP allows comments to be added to an order. These take the form of a row
         in the order data with some specific formatting.
@@ -262,13 +262,13 @@ class Order:
         VIP interface.
         """
         logger.info(f"Adding order comments: {comments}")
-        order_line = {
-            "productcode": "000997",  # A specific product code used for comments
-            "orderquantity": 0,
-            "unitofmeasure": "MI",
-            "invoicecomments": comments,
-        }
-        self.order_comments.append(OrderRow(**order_line))
+        comment_row = OrderRow(
+            productcode="000997",  # A specific product code used for comments
+            orderquantity=0,
+            unitofmeasure="MI",
+            invoicecomments=comments,
+        )
+        self.order_comments.append(comment_row)
 
     def remove_order_line(self, productcode: str):
         """
