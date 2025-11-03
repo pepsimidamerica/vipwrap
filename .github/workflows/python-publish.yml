@@ -44,7 +44,7 @@ jobs:
 
     steps:
     - name: Download the dist folder from the build job
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: dist
         path: dist
