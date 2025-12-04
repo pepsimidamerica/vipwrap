@@ -7,7 +7,7 @@ for SFTP and FTP uploads, respectively.
 import logging
 import os
 import time
-from ftplib import FTP
+from ftplib import FTP_TLS
 from typing import IO, Literal
 
 import paramiko
@@ -98,11 +98,13 @@ def download_ftp(
     Downloads all files in a folder on the VIP GDI server whose filenames start
     with the given string.
     """
-    ftp = FTP()
+    ftp = FTP_TLS()
     downloaded_files = []
     try:
         ftp.connect(host, port)
+        ftp.auth()
         ftp.login(user, password)
+        ftp.prot_p()
         ftp.cwd(folder)  # Change to the correct directory
         files = ftp.nlst(folder)
         for f in files:
@@ -141,8 +143,10 @@ def upload_ftp(host: str, user: str, password: str, folder: str, file: IO[str]):
     Upload file to FTP server
     """
 
-    with FTP(host) as ftp:
+    with FTP_TLS(host) as ftp:
+        ftp.auth()
         ftp.login(user, password)
+        ftp.prot_p()
         with open(file.name, "rb") as f:
             ftp.storbinary("STOR " + folder + file.name, f)
 
