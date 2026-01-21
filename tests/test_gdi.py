@@ -21,10 +21,10 @@ def test_download_picking() -> None:
     Test downloading picking files from GDI server.
     """
     gdi = GDI1(
-        host=os.getenv("GDI_HOST", "gdi.example.com"),
-        port=10021,
-        username="myuser",
-        password="mypass",
+        host=os.environ["FTP_HOST"],
+        port=int(os.environ["FTP_PORT"]),
+        username=os.environ["FTP_USER"],
+        password=os.environ["FTP_PASS"],
     )
     files = gdi.list_files("/out")
 
