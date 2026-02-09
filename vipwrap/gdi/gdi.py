@@ -5,7 +5,7 @@ for SFTP and FTP uploads, respectively.
 """
 
 import logging
-from ftplib import FTP_TLS
+from ftplib import FTP, FTP_TLS
 from pathlib import Path
 
 import paramiko
@@ -27,6 +27,7 @@ class GDI1:
         username: str,
         password: str,
         passive: bool = True,
+        use_tls: bool = True,
     ) -> None:
         """
         Initialize the FTP client and log in to the server.
@@ -42,6 +43,8 @@ class GDI1:
         :param passive: Use passive mode for data connections (default True).
                        Set to False for active mode if passive fails.
         :type passive: bool
+        :param use_tls: Use FTP over TLS (FTPS). Set to False for plain FTP.
+        :type use_tls: bool
         :return: None
         :rtype: None
         :raises ConnectionError: If unable to connect to the FTP server.
@@ -51,17 +54,23 @@ class GDI1:
         self.port = port
         self.username = username
         self.passive = passive
-        self.ftp = FTP_TLS()
+        self.ftp = FTP_TLS() if use_tls else FTP()
 
         try:
             logger.info(f"Attempting to connect to FTP server at {host}:{port}...")
             self.ftp.connect(host, port, timeout=30)
-            logger.info("Connection established, initiating TLS authentication...")
-            self.ftp.auth()
-            logger.info(f"TLS authentication successful, logger in as {username}...")
+            if use_tls:
+                logger.info("Connection established, initiating TLS authentication...")
+                self.ftp.auth()
+                logger.info(
+                    f"TLS authentication successful, logger in as {username}..."
+                )
+            else:
+                logger.info(f"Connection established, logger in as {username}...")
             self.ftp.login(user=username, passwd=password)
-            logger.info("Login successful, setting up protected data connection...")
-            self.ftp.prot_p()
+            if use_tls:
+                logger.info("Login successful, setting up protected data connection...")
+                self.ftp.prot_p()
 
             # Set passive mode
             self.ftp.set_pasv(passive)
@@ -81,6 +90,17 @@ class GDI1:
                 f"Failed to connect to FTP server at {host}:{port}: [{error_type}] {e}\n"
                 f"Check if server is running and firewall allows connections on port {port}"
             ) from e
+        except EOFError as e:
+            logger.error(
+                f"FTP connection closed by server during authentication\n"
+                f"User: {username}\n"
+                f"Error Message: {e}\n"
+                f"Possible causes: Server closed connection, TLS negotiation failed, unsupported protocol"
+            )
+            raise ValueError(
+                f"FTP authentication failed: Connection closed by server: {e}\n"
+                f"Verify username/password and that server supports {'FTPS (FTP over TLS)' if use_tls else 'plain FTP'}"
+            ) from e
         except Exception as e:
             error_type = type(e).__name__
             logger.error(
@@ -92,7 +112,7 @@ class GDI1:
             )
             raise ValueError(
                 f"FTP authentication/protocol failed: [{error_type}] {e}\n"
-                f"Verify username/password and that server supports FTPS (FTP over TLS)"
+                f"Verify username/password and that server supports {'FTPS (FTP over TLS)' if use_tls else 'plain FTP'}"
             ) from e
 
     def __del__(self) -> None:
