@@ -1,0 +1,342 @@
+"""
+models contains models used to validate Orders and Invoices/Sales History data.
+"""
+
+from pandera.pandas import DataFrameModel, Field, SeriesSchema
+
+
+class OrderModel(DataFrameModel):
+    """
+    This model represents a dataframe containing one or more orders.
+    Upon import into VIP, they will be unprocessed and need to be ran through
+    the various steps to send to the warehouse to get picked.
+
+    DataFrame Attributes:
+    SEQUENCE: 85
+    DATATYPE: ORDERS
+    ID: Unique identifier for each file, max of 10 digits (alphanumeric)
+    DATE: Date file was created, format YYYYMMDD
+    TIME: Time file was created, format HHMMSS
+
+    Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
+    """
+
+    loadnumber: str | None = Field(
+        str_length={"min_value": 8, "max_value": 8}, nullable=True
+    )
+    driver: str | None = Field(
+        str_length={"min_value": 5, "max_value": 5}, nullable=True
+    )
+    retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
+    linenumber: str = Field(
+        str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
+    )
+    unitofmeasure: str = Field(
+        str_length={"min_value": 2, "max_value": 2},
+        isin=["CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"],
+    )
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    orderquantity: str = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$", nullable=True)
+    discountamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    postoffamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    depositamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    specialprice: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"], nullable=True
+    )
+    voidflag: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    reasoncode: str | None = Field(
+        str_length={"min_value": 2, "max_value": 2}, nullable=True
+    )
+    codedate: str | None = Field(
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
+    )
+    deliverydate: str | None = Field(
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
+    )
+    ponumber: str | None = Field(
+        str_length={"min_value": 1, "max_value": 15}, nullable=True
+    )
+    company: str = Field(str_length={"min_value": 1, "max_value": 5})
+    warehouse: str = Field(str_length={"min_value": 1, "max_value": 5})
+    ordernumber: str = Field(str_length={"min_value": 1, "max_value": 9})
+    performancediscountanswer: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    discountcode: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountgroup: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountlevel: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, nullable=True
+    )
+    ignoredeliverycharge: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    orderdate: str | None = Field(
+        str_matches=r"^\d{8}$",
+        in_range={"min_value": 19700101, "max_value": 20991231},
+        nullable=True,
+    )
+    invoicecomments: str | None = Field(
+        str_length={"min_value": 1, "max_value": 560}, nullable=True
+    )
+    orderaction: str | None = Field(
+        str_length={"min_value": 1, "max_value": 2}, nullable=True
+    )
+    ordertype: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"], nullable=True
+    )
+
+    @classmethod
+    def FIELD_NAMES(cls) -> list[str]:
+        """
+        Returns the field names of the model as a list.
+        """
+        return [
+            "loadnumber",
+            "driver",
+            "retailerid",
+            "linenumber",
+            "unitofmeasure",
+            "productcode",
+            "orderquantity",
+            "orderprice",
+            "discountamount",
+            "postoffamount",
+            "depositamount",
+            "specialprice",
+            "voidflag",
+            "reasoncode",
+            "codedate",
+            "deliverydate",
+            "ponumber",
+            "company",
+            "warehouse",
+            "ordernumber",
+            "performancediscountanswer",
+            "discountcode",
+            "discountgroup",
+            "discountlevel",
+            "ignoredeliverycharge",
+            "orderdate",
+            "invoicecomments",
+            "orderaction",
+            "ordertype",
+        ]
+
+
+class OrderRowModel(SeriesSchema):
+    """
+    OrderRow represents a single row of an order. Each order can have multiple
+    rows.
+    """
+
+    unitofmeasure: str = Field(
+        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
+    )
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    orderquantity: str = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$", nullable=True)
+    discountamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    postoffamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    depositamount: str | None = Field(
+        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
+    )
+    specialprice: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"], nullable=True
+    )
+    voidflag: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    reasoncode: str | None = Field(
+        str_length={"min_value": 2, "max_value": 2}, nullable=True
+    )
+    performancediscountanswer: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    discountcode: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountgroup: str | None = Field(
+        str_length={"min_value": 1, "max_value": 10}, nullable=True
+    )
+    discountlevel: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, nullable=True
+    )
+    ignoredeliverycharge: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
+    )
+    invoicecomments: str | None = Field(
+        str_length={"min_value": 1, "max_value": 560}, nullable=True
+    )
+
+
+class InvoiceModel(DataFrameModel):
+    """
+    This model represents invoices/sales history. No processing is done on this
+    data, it is posted directly to the retailer's account. If anything posted
+    is incorrect, it would need to be fixed by posting a credit.
+
+    DataFrame Attributes:
+    SEQUENCE: 90
+    DATATYPE: SALESHISTORY
+    ID: Unique identifier for each file, max of 10 digits (alphanumeric)
+    DATE: Date file was created, format YYYYMMDD
+    TIME: Time file was created, format HHMMSS
+
+    Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
+    """
+
+    retailerid: str = Field(str_length={"min_value": 5, "max_value": 5})
+    invoicenumber: str = Field(
+        str_length={"min_value": 1, "max_value": 15}, str_matches=r"^\d+$"
+    )
+    invoicedate: str = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+    )
+    arstatus: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["1", "3"]
+    )
+    ordertype: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"]
+    )
+    loadnumber: str = Field(str_length={"min_value": 8, "max_value": 8})
+    driver: str = Field(str_length={"min_value": 5, "max_value": 5})
+    helper1: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper2: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper3: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper4: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    helper5: str | None = Field(str_length={"min_value": 5, "max_value": 5})
+    company: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    warehouse: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    flpgroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    pricegroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    subpricegroup: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    salesrep: str | None = Field(str_length={"min_value": 1, "max_value": 5})
+    voidflag: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"]
+    )
+    voidreason: str | None = Field(str_length={"min_value": 1, "max_value": 2})
+    invoicetype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    artype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    trucktype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    ponumber: str | None = Field(str_length={"min_value": 1, "max_value": 15})
+    linenumber: str = Field(
+        str_length={"min_value": 3, "max_value": 3}, str_matches=r"^\d+$"
+    )
+    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
+    unitofmeasure: str | None = Field(
+        str_length={"min_value": 2, "max_value": 2}, isin=["CW", "CB"]
+    )
+    ordermode: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1", "2", "3"]
+    )
+    orderquantity: str | None = Field(
+        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    outquantity: str | None = Field(
+        str_length={"min_value": 1, "max_value": 5}, str_matches=r"^\d+$"
+    )
+    onhandquantity: str | None = Field(
+        str_length={"min_value": 1, "max_value": 7}, str_matches=r"^\d+$"
+    )
+    partialcasequantity: str | None = Field(
+        str_length={"min_value": 1, "max_value": 2}, str_matches=r"^\d+$"
+    )
+    returnreasoncode: str | None = Field(str_length={"min_value": 2, "max_value": 2})
+    codedate: str | None = Field(
+        str_matches=r"^\d{8}$", in_range={"min_value": 19700101, "max_value": 20991231}
+    )
+    orderprice: str | None = Field(str_matches=r"^\d{1,6}(\.\d{1,3})?$")
+    ordercost: str | None = Field(str_matches=r"^\d{1,7}(\.\d{1,2})?$")
+    depositamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    deposittype: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    depletionallowance: str | None = Field(str_matches=r"^\d{1,6}(\.\d{1,5})?$")
+    postoffamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountamount: str | None = Field(str_matches=r"^\d{1,5}(\.\d{1,2})?$")
+    discountlevel1: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel2: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel3: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel4: str | None = Field(str_length={"min_value": 1, "max_value": 10})
+    discountlevel: str | None = Field(str_length={"min_value": 1, "max_value": 1})
+    specialprice: str | None = Field(
+        str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"]
+    )
+
+    @classmethod
+    def FIELD_NAMES(cls) -> list[str]:
+        """
+        Returns the field names of the model as a list.
+        """
+        return [
+            "retailerid",
+            "invoicenumber",
+            "invoicedate",
+            "arstatus",
+            "ordertype",
+            "loadnumber",
+            "driver",
+            "helper1",
+            "helper2",
+            "helper3",
+            "helper4",
+            "helper5",
+            "company",
+            "warehouse",
+            "flpgroup",
+            "pricegroup",
+            "subpricegroup",
+            "salesrep",
+            "voidflag",
+            "voidreason",
+            "invoicetype",
+            "artype",
+            "trucktype",
+            "ponumber",
+            "linenumber",
+            "productcode",
+            "unitofmeasure",
+            "ordermode",
+            "orderquantity",
+            "outquantity",
+            "onhandquantity",
+            "partialcasequantity",
+            "returnreasoncode",
+            "codedate",
+            "orderprice",
+            "ordercost",
+            "depositamount",
+            "deposittype",
+            "depletionallowance",
+            "postoffamount",
+            "discountamount",
+            "discountlevel1",
+            "discountlevel2",
+            "discountlevel3",
+            "discountlevel4",
+            "discountlevel",
+            "specialprice",
+        ]
