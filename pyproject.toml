@@ -21,7 +21,7 @@ license = { file = "LICENSE" }
 Homepage = "https://github.com/pepsimidamerica/vipwrap"
 
 [build-system]
-requires = ["uv_build>=0.7.7,<0.8"]
+requires = ["uv_build>=0.7.7,<0.12"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
