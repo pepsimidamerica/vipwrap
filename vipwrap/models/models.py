@@ -2,7 +2,8 @@
 models contains models used to validate Orders and Invoices/Sales History data.
 """
 
-from pandera.pandas import DataFrameModel, Field, SeriesSchema
+import pandas as pd
+from pandera.pandas import DataFrameModel, Field, SeriesSchema, check
 
 
 class OrderModel(DataFrameModel):
@@ -35,20 +36,12 @@ class OrderModel(DataFrameModel):
         str_length={"min_value": 2, "max_value": 2},
         isin=["CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"],
     )
-    productcode: str = Field(str_length={"min_value": 6, "max_value": 6})
-    orderquantity: str = Field(
-        str_length={"min_value": 5, "max_value": 5}, str_matches=r"^\d+$"
-    )
-    orderprice: str | None = Field(str_matches=r"^\d{1,9}(\.\d{1,3})?$", nullable=True)
-    discountamount: str | None = Field(
-        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
-    )
-    postoffamount: str | None = Field(
-        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
-    )
-    depositamount: str | None = Field(
-        str_matches=r"^\d{1,7}(\.\d{1,2})?$", nullable=True
-    )
+    productcode: str = Field(str_matches=r"^\d{6}$")
+    orderquantity: str = Field(str_matches=r"^\d{5}$")
+    orderprice: str | None = Field(str_matches=r"^\d{1,6}\.\d{3}$", nullable=True)
+    discountamount: str | None = Field(str_matches=r"^\d{1,5}\.\d{2}$", nullable=True)
+    postoffamount: str | None = Field(str_matches=r"^\d{1,5}\.\d{2}$", nullable=True)
+    depositamount: str | None = Field(str_matches=r"^\d{1,5}\.\d{2}$", nullable=True)
     specialprice: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["0", "1"], nullable=True
     )
@@ -58,16 +51,10 @@ class OrderModel(DataFrameModel):
     reasoncode: str | None = Field(
         str_length={"min_value": 2, "max_value": 2}, nullable=True
     )
-    codedate: str | None = Field(
-        str_matches=r"^\d{8}$",
-        in_range={"min_value": 19700101, "max_value": 20991231},
-        nullable=True,
+    codedate: pd.Int64Dtype = Field(
+        in_range={"min_value": 19700101, "max_value": 20991231}, nullable=True
     )
-    deliverydate: str | None = Field(
-        str_matches=r"^\d{8}$",
-        in_range={"min_value": 19700101, "max_value": 20991231},
-        nullable=True,
-    )
+    deliverydate: pd.Int64Dtype = Field()
     ponumber: str | None = Field(
         str_length={"min_value": 1, "max_value": 15}, nullable=True
     )
@@ -89,20 +76,33 @@ class OrderModel(DataFrameModel):
     ignoredeliverycharge: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["Y", "N"], nullable=True
     )
-    orderdate: str | None = Field(
-        str_matches=r"^\d{8}$",
-        in_range={"min_value": 19700101, "max_value": 20991231},
-        nullable=True,
+    salesrep: str | None = Field(
+        str_length={"min_value": 1, "max_value": 5}, nullable=True
+    )
+    orderdate: pd.Int64Dtype = Field(
+        in_range={"min_value": 19700101, "max_value": 20991231}, nullable=True
     )
     invoicecomments: str | None = Field(
         str_length={"min_value": 1, "max_value": 560}, nullable=True
     )
     orderaction: str | None = Field(
-        str_length={"min_value": 1, "max_value": 2}, nullable=True
+        str_length={"min_value": 2, "max_value": 2}, nullable=True
     )
     ordertype: str | None = Field(
         str_length={"min_value": 1, "max_value": 1}, isin=["S", "T"], nullable=True
     )
+
+    @check("deliverydate")
+    def deliverydate_valid(cls, series: pd.Series) -> pd.Series:
+        """
+        deliverydate is either a YYYYMMDD integer or 0 for an unassigned delivery day.
+
+        :param series: The deliverydate column
+        :type series: pd.Series
+        :return: Boolean mask of valid values
+        :rtype: pd.Series
+        """
+        return (series == 0) | series.between(19700101, 20991231)
 
     @classmethod
     def FIELD_NAMES(cls) -> list[str]:
@@ -135,6 +135,7 @@ class OrderModel(DataFrameModel):
             "discountgroup",
             "discountlevel",
             "ignoredeliverycharge",
+            "salesrep",
             "orderdate",
             "invoicecomments",
             "orderaction",
