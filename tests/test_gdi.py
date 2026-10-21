@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, "")
 load_dotenv()
 
-from vipwrap.gdi import GDI1
+from vipwrap.gdi import GDI1, GDI2
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +28,13 @@ def test_download_picking() -> None:
     """
     Test downloading picking files from GDI server.
     """
-    gdi = GDI1(
+    gdi = GDI2(
         host=os.environ["FTP_HOST"],
         port=int(os.environ["FTP_PORT"]),
         username=os.environ["FTP_USER"],
         password=os.environ["FTP_PASS"],
-        passive=True,
-        use_tls=False,
+        # passive=True,
+        # use_tls=False,
     )
     files = gdi.list_files(".")
 

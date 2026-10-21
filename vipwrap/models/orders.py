@@ -2,20 +2,44 @@
 The orders module contains classes to aid in constructing order data.
 """
 
+import dataclasses
+import inspect
 import io
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
+from pathlib import Path
+from typing import BinaryIO, Literal
 
 import pandas as pd
 
 from .models import OrderModel
+from .utils import (
+    check_forbidden_chars,
+    format_decimal,
+    parse_numbers,
+    read_flat_file,
+    to_yyyymmdd,
+)
+from .utils import generate_filename as build_filename
 
 logger = logging.getLogger(__name__)
 
 # Define the field names in the order they should appear in the output
 FIELD_NAMES = OrderModel.FIELD_NAMES()
+
+UNITS_OF_MEASURE = ["CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"]
+
+# Decimal fields mapped to (max digits before the decimal point, decimal places)
+DECIMAL_FIELDS = {
+    "orderprice": (6, 3),
+    "discountamount": (5, 2),
+    "postoffamount": (5, 2),
+    "depositamount": (5, 2),
+}
+
+COMMENT_PRODUCTCODE = "000997"
 
 
 @dataclass
@@ -24,55 +48,68 @@ class OrderRow:
     OrderRow represents a single row of order data in an given order.
     Each row corresponds to a product, with its associated details.
 
-    :param productcode: 6-character product code
-    :param orderquantity: 5-digit order quantity
+    :param productcode: 6-digit product code
+    :param orderquantity: Order quantity, 0 to 99999
     :param unitofmeasure: The unit of measure for the order quantity
-    :param orderprice: Price in format of digits with up to 3 decimal places (optional)
-    :param discountamount: Discount amount in format of digits with up to 2 decimal places
-    :param postoffamount: Post-off amount in format of digits with up to 2 decimal places (optional)
-    :param depositamount: Deposit amount in format of digits with up to 2 decimal places
+    :param orderprice: Price, up to 6 digits before the decimal point (optional)
+    :param discountamount: Discount amount, up to 5 digits before the decimal point (optional)
+    :param postoffamount: Post-off amount, up to 5 digits before the decimal point (optional)
+    :param depositamount: Deposit amount, up to 5 digits before the decimal point (optional)
     :param specialprice: "0" or "1". 0 = No special price, 1 = Special price applies (optional)
     :param voidflag: "Y" or "N" (optional)
     :param reasoncode: 2-character reason code (optional)
+    :param codedate: Code date as a date or YYYYMMDD integer, stored as an integer (optional)
     :param discountcode: Up to 10 character discount code (optional)
     :param discountgroup: Up to 10 character discount group (optional)
     :param discountlevel: 1-character discount level (optional)
     :param ignoredeliverycharge: "Y" or "N" (optional)
-    :param invoicecomments: Comments for the invoice (optional)
+    :param invoicecomments: Comments for the invoice, only allowed on comment rows (optional)
     """
 
     productcode: str
     orderquantity: int
     unitofmeasure: str
-    orderprice: float | None = None
-    discountamount: float | None = None
-    postoffamount: float | None = None
-    depositamount: float | None = None
+    orderprice: int | float | None = None
+    discountamount: int | float | None = None
+    postoffamount: int | float | None = None
+    depositamount: int | float | None = None
     specialprice: str | None = None
     voidflag: str | None = None
     reasoncode: str | None = None
+    codedate: date | int | None = None
     discountcode: str | None = None
     discountgroup: str | None = None
     discountlevel: str | None = None
     ignoredeliverycharge: str | None = None
     invoicecomments: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
-        Validate the length of fields to ensure they meet the requirements
+        Validate the fields to ensure they meet the requirements, and normalize
+        codedate to a YYYYMMDD integer.
         """
-        if len(self.productcode) != 6:
-            raise ValueError("productcode must be exactly 6 characters long")
-        if len(self.unitofmeasure) != 2:
-            raise ValueError("unitofmeasure must be exactly 2 characters long")
-        if self.orderquantity < 0 or self.orderquantity > 99999:
-            raise ValueError("orderquantity must be between 0 and 99999")
+        check_forbidden_chars(dataclasses.asdict(self))
+        if not re.fullmatch(r"\d{6}", self.productcode):
+            raise ValueError("productcode must be exactly 6 digits")
+        if self.unitofmeasure not in UNITS_OF_MEASURE:
+            raise ValueError(f"unitofmeasure must be one of {UNITS_OF_MEASURE}")
+        if (
+            isinstance(self.orderquantity, bool)
+            or not isinstance(self.orderquantity, int)
+            or not 0 <= self.orderquantity <= 99999
+        ):
+            raise ValueError("orderquantity must be an integer between 0 and 99999")
+        for name in DECIMAL_FIELDS:
+            if getattr(self, name) is not None:
+                format_decimal(getattr(self, name), name, *DECIMAL_FIELDS[name])
         if self.specialprice and self.specialprice not in ["0", "1"]:
             raise ValueError("specialprice must be '0' or '1'")
         if self.voidflag and self.voidflag not in ["Y", "N"]:
             raise ValueError("voidflag must be 'Y' or 'N'")
         if self.reasoncode and len(self.reasoncode) != 2:
             raise ValueError("reasoncode must be exactly 2 characters long")
+        if self.codedate is not None:
+            self.codedate = to_yyyymmdd(self.codedate, "codedate")
         if self.discountcode and len(self.discountcode) > 10:
             raise ValueError("discountcode must be at most 10 characters long")
         if self.discountgroup and len(self.discountgroup) > 10:
@@ -81,6 +118,13 @@ class OrderRow:
             raise ValueError("discountlevel must be exactly 1 character long")
         if self.ignoredeliverycharge and self.ignoredeliverycharge not in ["Y", "N"]:
             raise ValueError("ignoredeliverycharge must be 'Y' or 'N'")
+        if self.invoicecomments:
+            if self.productcode != COMMENT_PRODUCTCODE:
+                raise ValueError(
+                    f"invoicecomments only allowed on comment rows (productcode {COMMENT_PRODUCTCODE})"
+                )
+            if len(self.invoicecomments) > 560:
+                raise ValueError("invoicecomments must be at most 560 characters long")
 
 
 class Order:
@@ -100,32 +144,32 @@ class Order:
         company: str,
         warehouse: str,
         ordernumber: str,
-        deliverydate: date,
+        deliverydate: date | int,
         loadnumber: str | None = None,
         driver: str | None = None,
-        codedate: date | None = None,
         ponumber: str | None = None,
-        performancediscountanswer: str | None = None,
-        orderdate: date | None = None,
+        performancediscountanswer: Literal["Y", "N"] | None = None,
+        salesrep: str | None = None,
+        orderdate: date | int | None = None,
         orderaction: str | None = None,
         ordertype: Literal["S", "T"] | None = None,
-    ):
+    ) -> None:
         """
         Initialize an Order with header-level fields that will be the same
         for all order lines.
 
-        :param retailerid: The ID of the retailer
-        :param company: The company name
-        :param warehouse: The warehouse location
-        :param ordernumber: The order number
-        :param deliverydate: The delivery date
-        :param loadnumber: The load number (optional)
-        :param driver: The driver ID (optional)
-        :param codedate: The code date (optional)
+        :param retailerid: The 5-character VIP account number of the retailer
+        :param company: The company ID, up to 5 characters
+        :param warehouse: The warehouse ID, up to 5 characters
+        :param ordernumber: The order number, up to 9 characters
+        :param deliverydate: The delivery date, as a date or YYYYMMDD integer. 0 = unassigned delivery day
+        :param loadnumber: The 8-character load number (optional)
+        :param driver: The 5-character driver ID (optional)
         :param ponumber: The DSD or PO number (optional)
-        :param performancediscountanswer: The performance discount answer (optional)
-        :param orderdate: The order date (optional)
-        :param orderaction: The order action. Combine, Lock, DTT (optional)
+        :param performancediscountanswer: "Y" or "N" (optional)
+        :param salesrep: Sales rep override, up to 5 characters (optional)
+        :param orderdate: The order date, as a date or YYYYMMDD integer (optional)
+        :param orderaction: The 2-character order action. Combine, Lock, DTT (optional)
         :param ordertype: The order type. Sales = "S", Transfer = "T" (optional)
         """
         logger.info(
@@ -137,35 +181,41 @@ class Order:
         self.company = company
         self.warehouse = warehouse
         self.ordernumber = ordernumber
-        self.deliverydate = deliverydate
+        self.deliverydate = to_yyyymmdd(deliverydate, "deliverydate", allow_zero=True)
         self.loadnumber = loadnumber
         self.driver = driver
-        self.codedate = codedate
         self.ponumber = ponumber
         self.performancediscountanswer = performancediscountanswer
-        self.orderdate = orderdate
+        self.salesrep = salesrep
+        self.orderdate = (
+            to_yyyymmdd(orderdate, "orderdate") if orderdate is not None else None
+        )
         self.orderaction = orderaction
         self.ordertype = ordertype
 
-        # Validate that header fields don't exceed their max lengths
+        # Validate that header fields meet their requirements
+        check_forbidden_chars(vars(self))
         if len(self.retailerid) != 5:
             raise ValueError("retailerid must be exactly 5 characters long")
-        if len(self.company) > 100:
-            raise ValueError("company must be at most 100 characters long")
-        if len(self.warehouse) > 100:
-            raise ValueError("warehouse must be at most 100 characters long")
-        if len(self.ordernumber) > 9:
-            raise ValueError("ordernumber must be at most 9 characters long")
+        if not 1 <= len(self.company) <= 5:
+            raise ValueError("company must be 1 to 5 characters long")
+        if not 1 <= len(self.warehouse) <= 5:
+            raise ValueError("warehouse must be 1 to 5 characters long")
+        if not 1 <= len(self.ordernumber) <= 9:
+            raise ValueError("ordernumber must be 1 to 9 characters long")
         if self.loadnumber and len(self.loadnumber) != 8:
             raise ValueError("loadnumber must be exactly 8 characters long")
         if self.driver and len(self.driver) != 5:
             raise ValueError("driver must be exactly 5 characters long")
         if self.ponumber and len(self.ponumber) > 15:
             raise ValueError("ponumber must be at most 15 characters long")
-        if self.performancediscountanswer and len(self.performancediscountanswer) != 1:
-            raise ValueError(
-                "performancediscountanswer must be exactly 1 character long"
-            )
+        if self.performancediscountanswer and self.performancediscountanswer not in [
+            "Y",
+            "N",
+        ]:
+            raise ValueError("performancediscountanswer must be 'Y' or 'N'")
+        if self.salesrep and len(self.salesrep) > 5:
+            raise ValueError("salesrep must be at most 5 characters long")
         if self.orderaction and len(self.orderaction) != 2:
             raise ValueError("orderaction must be exactly 2 characters long")
         if self.ordertype and self.ordertype not in ["S", "T"]:
@@ -182,43 +232,41 @@ class Order:
         unitofmeasure: Literal[
             "CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"
         ],
-        orderprice: float | None = None,
-        discountamount: float | None = None,
-        postoffamount: float | None = None,
-        depositamount: float | None = None,
+        orderprice: int | float | None = None,
+        discountamount: int | float | None = None,
+        postoffamount: int | float | None = None,
+        depositamount: int | float | None = None,
         specialprice: Literal["0", "1"] | None = None,
         voidflag: Literal["Y", "N"] | None = None,
         reasoncode: str | None = None,
+        codedate: date | int | None = None,
         discountcode: str | None = None,
         discountgroup: str | None = None,
         discountlevel: str | None = None,
         ignoredeliverycharge: Literal["Y", "N"] | None = None,
-    ):
+    ) -> None:
         """
         Add an order line to this order. The header fields will be automatically
         added to the order line.
 
-        :param productcode: 6-character product code
-        :param orderquantity: 5-digit order quantity
+        :param productcode: 6-digit product code
+        :param orderquantity: Order quantity, 0 to 99999
         :param unitofmeasure: 2-character unit of measure, CW = Case Wine, CB = case beer, BW = bottle wine, HK = Half Keg, QK=Quarter Keg, MI=Miscellaneous, CS= Case Soda, FS = Fountain Syrup, PO = Postmix, PR = Premix
-        :param orderprice: Price in format of digits with up to 3 decimal places (optional)
-        :param discountamount: Discount amount in format of digits with up to 2 decimal places (optional)
-        :param postoffamount: Post-off amount in format of digits with up to 2 decimal places (optional)
-        :param depositamount: Deposit amount in format of digits with up to 2 decimal places (optional)
+        :param orderprice: Price, up to 6 digits before the decimal point (optional)
+        :param discountamount: Discount amount, up to 5 digits before the decimal point (optional)
+        :param postoffamount: Post-off amount, up to 5 digits before the decimal point (optional)
+        :param depositamount: Deposit amount, up to 5 digits before the decimal point (optional)
         :param specialprice: "0" or "1". 0 = No special price, 1 = Special price applies (optional)
         :param voidflag: "Y" or "N" (optional)
         :param reasoncode: 2-character reason code (optional)
+        :param codedate: Code date, as a date or YYYYMMDD integer (optional)
         :param discountcode: Up to 10 character discount code (optional)
         :param discountgroup: Up to 10 character discount group (optional)
         :param discountlevel: 1-character discount level (optional)
         :param ignoredeliverycharge: "Y" or "N" (optional)
         """
-
         # Check that productcode not already present
-        if any(
-            getattr(line, "productcode", None) == productcode
-            for line in self.order_lines
-        ):
+        if any(line.productcode == productcode for line in self.order_lines):
             error_msg = f"Product code {productcode} is already present in order lines."
             logger.error(error_msg)
             raise ValueError(error_msg)
@@ -227,29 +275,25 @@ class Order:
             f"Adding order line for product {productcode}, quantity {orderquantity} {unitofmeasure}"
         )
 
-        # Create the order line dictionary with provided parameters
-        complete_order_line = {
-            "productcode": productcode,
-            "orderquantity": orderquantity,
-            "unitofmeasure": unitofmeasure,
-            "orderprice": orderprice,
-            "discountamount": discountamount,
-            "postoffamount": postoffamount,
-            "depositamount": depositamount,
-            "specialprice": specialprice,
-            "voidflag": voidflag,
-            "reasoncode": reasoncode,
-            "discountcode": discountcode,
-            "discountgroup": discountgroup,
-            "discountlevel": discountlevel,
-            "ignoredeliverycharge": ignoredeliverycharge,
-        }
-
-        # Remove None values to avoid overriding header values
-        complete_order_line = {
-            k: v for k, v in complete_order_line.items() if v is not None
-        }
-        self.order_lines.append(OrderRow(**complete_order_line))
+        self.order_lines.append(
+            OrderRow(
+                productcode=productcode,
+                orderquantity=orderquantity,
+                unitofmeasure=unitofmeasure,
+                orderprice=orderprice,
+                discountamount=discountamount,
+                postoffamount=postoffamount,
+                depositamount=depositamount,
+                specialprice=specialprice,
+                voidflag=voidflag,
+                reasoncode=reasoncode,
+                codedate=codedate,
+                discountcode=discountcode,
+                discountgroup=discountgroup,
+                discountlevel=discountlevel,
+                ignoredeliverycharge=ignoredeliverycharge,
+            )
+        )
         logger.info(
             f"Order line added for product {productcode} with quantity {orderquantity} {unitofmeasure}."
         )
@@ -257,24 +301,27 @@ class Order:
     def add_order_comments(self, comments: str) -> None:
         """
         VIP allows comments to be added to an order. These take the form of a row
-        in the order data with some specific formatting.
+        in the order data with some specific formatting. Multiple comment rows
+        per order are allowed.
         Note: Comments will line break over 70 characters when viewed in the
         VIP interface.
+
+        :param comments: The comment text, up to 560 characters
+        :type comments: str
         """
         logger.info(f"Adding order comments: {comments}")
         comment_row = OrderRow(
-            productcode="000997",  # A specific product code used for comments
+            productcode=COMMENT_PRODUCTCODE,
             orderquantity=0,
             unitofmeasure="MI",
             invoicecomments=comments,
         )
         self.order_comments.append(comment_row)
 
-    def remove_order_line(self, productcode: str):
+    def remove_order_line(self, productcode: str) -> None:
         """
         Remove an order line by its productcode.
         """
-
         logger.info(f"Attempting to remove order line with product code {productcode}")
 
         # Check that productcode is present
@@ -294,44 +341,52 @@ class Order:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-    def remove_order_comments(self):
+    def remove_order_comments(self) -> None:
         """
         Clears out all order comments from the order.
         """
         logger.info("Removing all order comments")
         self.order_comments.clear()
 
-    def update_order_line(self, productcode: str, **kwargs):
+    def update_order_line(self, productcode: str, **kwargs) -> None:
         """
-        Update an existing order line with new values.
+        Update an existing order line with new values. The updated line is
+        validated the same way as a new one.
 
         :param productcode: The product code of the order line to update.
         :param kwargs: The fields to update and their new values.
         """
-
         # Find the order line to update
-        order_line = next(
-            (line for line in self.order_lines if line.productcode == productcode), None
+        index = next(
+            (
+                i
+                for i, line in enumerate(self.order_lines)
+                if line.productcode == productcode
+            ),
+            None,
         )
-
-        if order_line:
-            # Update the order line with new values
-            for key, value in kwargs.items():
-                setattr(order_line, key, value)
-            logger.info(
-                f"Successfully updated order line with product code {productcode}"
-            )
-        else:
+        if index is None:
             error_msg = f"Product code {productcode} not found in order lines."
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-    def __str__(self):
+        # replace() builds a new OrderRow, so __post_init__ validation runs again
+        self.order_lines[index] = dataclasses.replace(self.order_lines[index], **kwargs)
+        logger.info(f"Successfully updated order line with product code {productcode}")
+
+    def __str__(self) -> str:
         """
         Prints a string representation of the order, including header fields
         and number of order lines.
         """
         return f"Order({self.retailerid}, {self.company}, {len(self.order_lines)})"
+
+
+# Field names used when building orders from an existing file
+HEADER_FIELDS = list(inspect.signature(Order.__init__).parameters)[1:]
+LINE_FIELDS = [
+    f.name for f in dataclasses.fields(OrderRow) if f.name != "invoicecomments"
+]
 
 
 class OrderBatch:
@@ -353,18 +408,21 @@ class OrderBatch:
     Output Filename: SEQUENCE_DATATYPE_ID_DATE_TIME.DAT
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """
+        Construct a new batch of orders for import into VIP.
+        """
         logger.info("Creating new OrderBatchModel")
         self.orders: list[Order] = []
 
-    def add_order(self, order: Order):
+    def add_order(self, order: Order) -> None:
         """
         Add an order to the batch.
         """
         logger.info(f"Adding order for retailer {order.retailerid} to batch")
         self.orders.append(order)
 
-    def remove_order(self, order: Order):
+    def remove_order(self, order: Order) -> None:
         """
         Remove an order from the batch.
         """
@@ -375,7 +433,7 @@ class OrderBatch:
         """
         Convert the batch of orders to a single DataFrame.
         Each order's lines are concatenated into a single DataFrame.
-        Ensures all date columns are strings in YYYYMMDD format and all columns are strings before validation/export.
+        Decimal fields are formatted as strings, date fields are nullable integers.
         """
         logger.info("Converting order batch to DataFrame")
         df_orders = pd.DataFrame()
@@ -386,37 +444,13 @@ class OrderBatch:
 
             # Row-level conversions
             for row in all_rows:
-                row_dict = row.__dict__.copy()
-
-                # Convert numeric fields to formatted strings
-                if (
-                    "orderquantity" in row_dict
-                    and row_dict["orderquantity"] is not None
-                ):
-                    if isinstance(row_dict["orderquantity"], int):
-                        row_dict["orderquantity"] = f"{row_dict['orderquantity']:05}"
-                if "orderprice" in row_dict and row_dict["orderprice"] is not None:
-                    if isinstance(row_dict["orderprice"], float):
-                        row_dict["orderprice"] = f"{row_dict['orderprice']:.3f}"
-                if (
-                    "discountamount" in row_dict
-                    and row_dict["discountamount"] is not None
-                ):
-                    if isinstance(row_dict["discountamount"], float):
-                        row_dict["discountamount"] = f"{row_dict['discountamount']:.2f}"
-                if (
-                    "postoffamount" in row_dict
-                    and row_dict["postoffamount"] is not None
-                ):
-                    if isinstance(row_dict["postoffamount"], float):
-                        row_dict["postoffamount"] = f"{row_dict['postoffamount']:.2f}"
-                if (
-                    "depositamount" in row_dict
-                    and row_dict["depositamount"] is not None
-                ):
-                    if isinstance(row_dict["depositamount"], float):
-                        row_dict["depositamount"] = f"{row_dict['depositamount']:.2f}"
-
+                row_dict = dataclasses.asdict(row)
+                row_dict["orderquantity"] = f"{row.orderquantity:05}"
+                for name in DECIMAL_FIELDS:
+                    if row_dict[name] is not None:
+                        row_dict[name] = format_decimal(
+                            row_dict[name], name, *DECIMAL_FIELDS[name]
+                        )
                 rows_dicts.append(row_dict)
 
             order_df = pd.DataFrame(rows_dicts)
@@ -429,22 +463,12 @@ class OrderBatch:
             order_df["deliverydate"] = order.deliverydate
             order_df["loadnumber"] = order.loadnumber
             order_df["driver"] = order.driver
-            order_df["codedate"] = order.codedate
             order_df["ponumber"] = order.ponumber
             order_df["performancediscountanswer"] = order.performancediscountanswer
+            order_df["salesrep"] = order.salesrep
             order_df["orderdate"] = order.orderdate
             order_df["orderaction"] = order.orderaction
             order_df["ordertype"] = order.ordertype
-
-            # Header-level conversions: convert date fields to YYYYMMDD strings if not None
-            for date_col in ["deliverydate", "codedate", "orderdate"]:
-                if date_col in order_df:
-                    # Convert each value in the column to string if it's a date, else leave as is
-                    order_df[date_col] = order_df[date_col].apply(
-                        lambda x: x.strftime("%Y%m%d")
-                        if isinstance(x, (datetime, date))
-                        else (str(x) if x is not None else None)
-                    )
 
             # Create list of linenumbers for each order. Each linenumber is a 3-digit string starting from 001
             line_count = len(all_rows)
@@ -461,9 +485,9 @@ class OrderBatch:
         # Reorder columns to match the expected field order
         df_orders = df_orders[FIELD_NAMES]
 
-        # # Replace None/NaN with empty string, then cast to string
-        # df_orders = df_orders.where(pd.notnull(df_orders), "")
-        # df_orders = df_orders.astype(str)
+        # Nullable integer dtype keeps dates as integers instead of floats when blanks are present
+        for col in ["codedate", "deliverydate", "orderdate"]:
+            df_orders[col] = df_orders[col].astype("Int64")
 
         # Validate the DataFrame against the OrderModel
         OrderModel.validate(df_orders)
@@ -485,25 +509,84 @@ class OrderBatch:
 
         all_data = self.to_dataframe()
         data_str = all_data.to_csv(
-            sep="|", index=False, header=False, lineterminator="\n"
+            sep="|", index=False, header=False, lineterminator="\r\n"
         )
         header_str = "|".join(FIELD_NAMES)
 
         output = io.BytesIO()
-        output.write((header_str + "\n").encode("utf-8"))
+        output.write((header_str + "\r\n").encode("utf-8"))
         output.write(data_str.encode("utf-8"))
         output.seek(0)
 
         return output
 
+    @classmethod
+    def from_flat_file(cls, source: str | Path | BinaryIO) -> "OrderBatch":
+        """
+        Build an OrderBatch from an existing order file, e.g. one generated by
+        another process, so it can be reviewed or updated and exported again.
+
+        Rows are grouped into orders by retailerid and ordernumber. Rows with
+        productcode 000997 become order comments. Line numbers are regenerated
+        on export.
+
+        :param source: Path to the .DAT file, or a binary file-like object
+        :type source: str | Path | BinaryIO
+        :return: The batch of orders in the file
+        :rtype: OrderBatch
+        :raises ValueError: If a row fails validation, or rows of the same order have different header values
+        """
+        logger.info("Building order batch from flat file")
+        batch = cls()
+        orders: dict[tuple, Order] = {}
+        for line_no, row in enumerate(read_flat_file(source), start=2):
+            try:
+                parse_numbers(
+                    row,
+                    ints=["deliverydate", "orderdate", "codedate", "orderquantity"],
+                    floats=list(DECIMAL_FIELDS),
+                )
+                header = {name: row.get(name) for name in HEADER_FIELDS}
+                key = (header["retailerid"], header["ordernumber"])
+                if key not in orders:
+                    orders[key] = Order(**header)
+                    batch.add_order(orders[key])
+                elif header != {name: getattr(orders[key], name) for name in header}:
+                    raise ValueError(
+                        f"Header values differ from earlier rows of order {key}"
+                    )
+
+                if row.get("productcode") == COMMENT_PRODUCTCODE:
+                    orders[key].add_order_comments(row.get("invoicecomments") or "")
+                else:
+                    if row.get("invoicecomments"):
+                        logger.warning(
+                            f"Row {line_no}: invoicecomments on a non-comment row is ignored by VIP, dropping it"
+                        )
+                    orders[key].add_order_line(
+                        **{name: row.get(name) for name in LINE_FIELDS}
+                    )
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Row {line_no}: {e}") from e
+        return batch
+
     @staticmethod
-    def generate_filename(id: str, datetime: datetime):
+    def generate_filename(id: str, datetime: datetime) -> str:
         """
         Generate the filename for the order file to be uploaded to VIP.
-        """
-        filename = f"85_ORDERS_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
-        logger.info(f"Generated filename: {filename}")
-        return filename
 
-    def __str__(self):
+        :param id: Unique identifier for the file, 1 to 10 alphanumeric characters
+        :type id: str
+        :param datetime: Timestamp the file was created
+        :type datetime: datetime
+        :return: The filename
+        :rtype: str
+        :raises ValueError: If id is not 1 to 10 alphanumeric characters
+        """
+        return build_filename("85", "ORDERS", id, datetime)
+
+    def __str__(self) -> str:
+        """
+        Prints a string representation of an OrderBatch.
+        """
         return "\n".join([str(order) for order in self.orders])

@@ -1,21 +1,21 @@
 [project]
 name = "vipwrap"
-version = "0.2"
+version = "1.0"
 description = "Python package that allows interacting with VIP."
 readme = "README.md"
 authors = [{ name = "Jordan Maynor", email = "jmaynor@pepsimidamerica.com" }]
 requires-python = ">=3.13"
 dependencies = [
-    "pandas>=2.3.3",
+    "pandas>=3.0.5",
     "pandera>=0.26.1",
     "paramiko>=4.0.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: The Unlicense (Unlicense)",
     "Operating System :: OS Independent",
 ]
-license = { file = "LICENSE" }
+license-files = ["LICENSE"]
+license= "Unlicense"
 
 [project.urls]
 Homepage = "https://github.com/pepsimidamerica/vipwrap"
@@ -27,6 +27,7 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "vipwrap"
 module-root = ""
+source-exclude = ["tests/**"]
 
 [dependency-groups]
 dev = [
