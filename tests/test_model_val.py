@@ -1,3 +1,4 @@
+import io
 from datetime import date, datetime
 
 import pytest
@@ -175,6 +176,34 @@ def test_order_validation():
 
     with pytest.raises(ValueError):
         OrderBatch.generate_filename("TOO_LONG_ID!", datetime.now())
+
+
+def test_order_round_trip():
+    order = Order("C0001", "00001", "00001", "123456789", 20191205, salesrep="S1000")
+    order.add_order_line("001001", 2, "CW", orderprice=10.5, codedate=20191231)
+    order.add_order_line("001002", 5, "CB")
+    order.add_order_comments("Comments here")
+    batch = OrderBatch()
+    batch.add_order(order)
+    original = batch.to_flat_file().read()
+
+    rebuilt = OrderBatch.from_flat_file(io.BytesIO(original))
+    assert rebuilt.to_flat_file().read() == original
+    assert len(rebuilt.orders) == 1
+    assert len(rebuilt.orders[0].order_lines) == 2
+    assert len(rebuilt.orders[0].order_comments) == 1
+
+    # Spec example row, with its stray whitespace
+    spec_file = (
+        "|".join(OrderModel.FIELD_NAMES())
+        + "\r\n12345678|12345|C0001|004|MI| 000997|00000 |0.000   |0.00 |0.00 |0.00 |0|N|00|20191231|20191205|123456789012345|00001|00001|123456789|N|1234567890|1234567890|1|N|S1000|20191203|Comments here||S\r\n"
+    )
+    spec_batch = OrderBatch.from_flat_file(io.BytesIO(spec_file.encode()))
+    assert spec_batch.orders[0].order_comments[0].invoicecomments == "Comments here"
+
+    conflicting = original.replace(b"|S1000|", b"|S2000|", 1)
+    with pytest.raises(ValueError, match="Row 3: Header values differ"):
+        OrderBatch.from_flat_file(io.BytesIO(conflicting))
 
 
 if __name__ == "__main__":

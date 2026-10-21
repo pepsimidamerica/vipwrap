@@ -3,16 +3,26 @@ The orders module contains classes to aid in constructing order data.
 """
 
 import dataclasses
+import inspect
 import io
 import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
+from pathlib import Path
+from typing import BinaryIO, Literal
 
 import pandas as pd
 
 from .models import OrderModel
+from .utils import (
+    check_forbidden_chars,
+    format_decimal,
+    parse_numbers,
+    read_flat_file,
+    to_yyyymmdd,
+)
+from .utils import generate_filename as build_filename
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +30,6 @@ logger = logging.getLogger(__name__)
 FIELD_NAMES = OrderModel.FIELD_NAMES()
 
 UNITS_OF_MEASURE = ["CW", "CB", "BW", "HK", "QK", "MI", "CS", "FS", "PO", "PR"]
-
-# Characters that would break the pipe-delimited file format
-FORBIDDEN_CHARS = set(",'\"|\r\n")
 
 # Decimal fields mapped to (max digits before the decimal point, decimal places)
 DECIMAL_FIELDS = {
@@ -33,73 +40,6 @@ DECIMAL_FIELDS = {
 }
 
 COMMENT_PRODUCTCODE = "000997"
-
-
-def check_forbidden_chars(fields: dict[str, object]) -> None:
-    """
-    Raise if any string value contains a character that would break the file format.
-
-    :param fields: Mapping of field name to value
-    :type fields: dict[str, object]
-    :raises ValueError: If a value contains a comma, quote, pipe, or line break
-    """
-    for name, value in fields.items():
-        if isinstance(value, str) and FORBIDDEN_CHARS & set(value):
-            raise ValueError(
-                f"{name} must not contain commas, quotes, pipes, or line breaks"
-            )
-
-
-def to_yyyymmdd(value: date | int, name: str, allow_zero: bool = False) -> int:
-    """
-    Convert a date, or validate an integer, as a YYYYMMDD integer.
-
-    :param value: A date, or an integer already in YYYYMMDD format
-    :type value: date | int
-    :param name: Field name, used in error messages
-    :type name: str
-    :param allow_zero: Whether 0 is accepted (unassigned delivery day)
-    :type allow_zero: bool
-    :return: The date as a YYYYMMDD integer
-    :rtype: int
-    :raises ValueError: If the value is not a valid date
-    """
-    if isinstance(value, date):
-        return int(value.strftime("%Y%m%d"))
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be a date or a YYYYMMDD integer")
-    if allow_zero and value == 0:
-        return 0
-    try:
-        datetime.strptime(str(value), "%Y%m%d")
-    except ValueError:
-        raise ValueError(f"{name} must be a valid YYYYMMDD date, got {value}") from None
-    if len(str(value)) != 8:
-        raise ValueError(f"{name} must be a valid YYYYMMDD date, got {value}")
-    return value
-
-
-def format_decimal(value: int | float, name: str) -> str:
-    """
-    Format a decimal field to its fixed number of decimal places, validating its size.
-
-    :param value: The numeric value
-    :type value: int | float
-    :param name: Field name, must be a key of DECIMAL_FIELDS
-    :type name: str
-    :return: The formatted value, e.g. "10.500"
-    :rtype: str
-    :raises ValueError: If the value is not a non-negative number that fits the field
-    """
-    int_digits, places = DECIMAL_FIELDS[name]
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{name} must be a number")
-    text = f"{value:.{places}f}"
-    if not re.fullmatch(rf"\d{{1,{int_digits}}}\.\d{{{places}}}", text):
-        raise ValueError(
-            f"{name} must be non-negative with at most {int_digits} digits before the decimal point"
-        )
-    return text
 
 
 @dataclass
@@ -161,7 +101,7 @@ class OrderRow:
             raise ValueError("orderquantity must be an integer between 0 and 99999")
         for name in DECIMAL_FIELDS:
             if getattr(self, name) is not None:
-                format_decimal(getattr(self, name), name)
+                format_decimal(getattr(self, name), name, *DECIMAL_FIELDS[name])
         if self.specialprice and self.specialprice not in ["0", "1"]:
             raise ValueError("specialprice must be '0' or '1'")
         if self.voidflag and self.voidflag not in ["Y", "N"]:
@@ -442,6 +382,13 @@ class Order:
         return f"Order({self.retailerid}, {self.company}, {len(self.order_lines)})"
 
 
+# Field names used when building orders from an existing file
+HEADER_FIELDS = list(inspect.signature(Order.__init__).parameters)[1:]
+LINE_FIELDS = [
+    f.name for f in dataclasses.fields(OrderRow) if f.name != "invoicecomments"
+]
+
+
 class OrderBatch:
     """
     OrderBatch represents a batch of one or more orders to be processed by VIP.
@@ -501,7 +448,9 @@ class OrderBatch:
                 row_dict["orderquantity"] = f"{row.orderquantity:05}"
                 for name in DECIMAL_FIELDS:
                     if row_dict[name] is not None:
-                        row_dict[name] = format_decimal(row_dict[name], name)
+                        row_dict[name] = format_decimal(
+                            row_dict[name], name, *DECIMAL_FIELDS[name]
+                        )
                 rows_dicts.append(row_dict)
 
             order_df = pd.DataFrame(rows_dicts)
@@ -571,6 +520,56 @@ class OrderBatch:
 
         return output
 
+    @classmethod
+    def from_flat_file(cls, source: str | Path | BinaryIO) -> "OrderBatch":
+        """
+        Build an OrderBatch from an existing order file, e.g. one generated by
+        another process, so it can be reviewed or updated and exported again.
+
+        Rows are grouped into orders by retailerid and ordernumber. Rows with
+        productcode 000997 become order comments. Line numbers are regenerated
+        on export.
+
+        :param source: Path to the .DAT file, or a binary file-like object
+        :type source: str | Path | BinaryIO
+        :return: The batch of orders in the file
+        :rtype: OrderBatch
+        :raises ValueError: If a row fails validation, or rows of the same order have different header values
+        """
+        logger.info("Building order batch from flat file")
+        batch = cls()
+        orders: dict[tuple, Order] = {}
+        for line_no, row in enumerate(read_flat_file(source), start=2):
+            try:
+                parse_numbers(
+                    row,
+                    ints=["deliverydate", "orderdate", "codedate", "orderquantity"],
+                    floats=list(DECIMAL_FIELDS),
+                )
+                header = {name: row.get(name) for name in HEADER_FIELDS}
+                key = (header["retailerid"], header["ordernumber"])
+                if key not in orders:
+                    orders[key] = Order(**header)
+                    batch.add_order(orders[key])
+                elif header != {name: getattr(orders[key], name) for name in header}:
+                    raise ValueError(
+                        f"Header values differ from earlier rows of order {key}"
+                    )
+
+                if row.get("productcode") == COMMENT_PRODUCTCODE:
+                    orders[key].add_order_comments(row.get("invoicecomments") or "")
+                else:
+                    if row.get("invoicecomments"):
+                        logger.warning(
+                            f"Row {line_no}: invoicecomments on a non-comment row is ignored by VIP, dropping it"
+                        )
+                    orders[key].add_order_line(
+                        **{name: row.get(name) for name in LINE_FIELDS}
+                    )
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Row {line_no}: {e}") from e
+        return batch
+
     @staticmethod
     def generate_filename(id: str, datetime: datetime) -> str:
         """
@@ -584,11 +583,7 @@ class OrderBatch:
         :rtype: str
         :raises ValueError: If id is not 1 to 10 alphanumeric characters
         """
-        if not re.fullmatch(r"[A-Za-z0-9]{1,10}", id):
-            raise ValueError("id must be 1 to 10 alphanumeric characters")
-        filename = f"85_ORDERS_{id}_{datetime.strftime('%Y%m%d_%H%M%S')}.DAT"
-        logger.info(f"Generated filename: {filename}")
-        return filename
+        return build_filename("85", "ORDERS", id, datetime)
 
     def __str__(self) -> str:
         """

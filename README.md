@@ -1,6 +1,6 @@
 # Summary
 
-At the moment, the package is mainly just a wrapper around FTP and SFTP libraries. It's used to upload and download files from VIP's GDI/GDI2 system. But could be expanded on with SQL functionality or if VIP ever added a genuine API in the future.
+vipwrap is a package used to interact with the Vermont Information Processing software (VIP). It is mainly just a wrapper around FTP and SFTP libraries. Used to upload and download files from VIP's GDI system. But could be expanded on with SQL functionality or if VIP ever added a genuine API in the future.
 
 ## Installation
 
@@ -10,9 +10,7 @@ At the moment, the package is mainly just a wrapper around FTP and SFTP librarie
 
 Vipwrap contains two modules, `gdi` and `models`.
 
-`gdi` covers the actual connection to VIP's GDI servers and the downloading/uploading of files. Largely just a wrapper around ftp libraries. Nothing that's necessarily VIP-specific happening in it. Use of the `GDI2` class is recommended. VIP has largely phased out the `GDI1` system. See their documentation for more details.
-
-`models` contains various classes for working with order or sales history data. Has not been fully built out yet. Intention is to be able to construct order or sales history as python objects rather than as raw flat files and include methods for conversion to .DAT format that the GDI system expects.
+`gdi` covers the actual connection to VIP's GDI servers and the downloading/uploading of files. Largely just a wrapper around ftp libraries. Nothing that's necessarily VIP-specific happening in it. Use of the `GDI2` class is recommended. VIP has largely phased out their `GDI1` system. See their documentation/customer support for more details.
 
 Example usage:
 ```python
@@ -25,4 +23,17 @@ gdi = GDI2(
     password=os.environ["FTP_PASS"],
 )
 gdi.download_file("./FILENAME.csv", "LOCAL_PATH.csv")
+```
+
+`models` contains various classes for working with order or sales history data. Intention is to be able to construct order or sales history as python objects rather than as raw flat files and include methods for conversion to/from .DAT format that the GDI system expects. Has not been extensively tested in prod yet.
+
+```python
+from vipwrap.models import InvoiceBatch, OrderBatch
+
+ords = OrderBatch().from_flat_file(
+    r"LOCATION\85_ORDERS_0000001234_20261021_123456.DAT"
+)
+invs = InvoiceBatch().from_flat_file(
+    r"LOCATION\90_SALESHISTORY_0000001234_20261021_123456.DAT"
+)
 ```
